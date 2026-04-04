@@ -21,7 +21,13 @@ func func2(x int) int {
 
 В функции `func1` и `func2` видим один и тот же код:
 
+> P.S. да, да, assembler для Linux + x86-64, но автор закпускает код на macos + m1. Однако, все твои приложения запускаются в кубере и как правило на образе с linux ядром и на машине скорее всего с x86-64 (Intel Xeon). Давай честно, нам надо смотреть на код (asm) для той пары OS + CPU, которая будет чаще встречаться в твоей практике
+>
+> P.S.S. Я буду повторять еще несколько раз это в тексте про это напоминать, чтобы не забывалось :)
+
 ```assembly
+# GOOS=linux GOARCH=amd64 go build -gcflags="-l -N" main.go
+
 000000000046fb80 <main.main>:
     cmp    0x10(%r14),%rsp
     jbe    46fbab <main.main+0x2b>
@@ -71,13 +77,13 @@ func func2(x int) int {
 Здесь для нас важны регистры `RSP`, `RBP`, `EAX (RAX)`, `RIP`. В x86-64 стек всегда растет вниз, то есть от больших адресов к меньшим. Каждая функция выполняется в своем фрейме, то есть в области ограниченной сверху и снизу. Однако у любой горутины свой стек-фрейм и он расположен не в секции **stack** ELF-файла Linux, а лежит в куче. При этом Go секцию **stack** практически не использует, реальное использование этой секции ограничивается только:
 
 1. Для **запуска рантайма Go**. Пользовательскую функцию **main.main** вызывает функция **runtime.main**, которую вызывает **rt0_go**, а её вызывает **_rt0_amd64_linux**. Так «запускается рантайм Go» и так запускается «пользовательский код», и этот процесс представляет из себя цепочку вызовов:
-   1. **_rt0_amd64_linux** — при первом старте запускается из Assembler-вставки **_rt0_amd64_linux**. Именно адрес этой функции указан в **e_entry ELF-файла**, который Linux пишет в регистр **RIP**. Это просто точка входа, которая вызывает **runtime.rt0_go**.
-   2. **runtime.rt0_go** — инициализирует рантайм и передаёт управление **runtime.main**. Но что значит «настраивает рантайм»:
-      1. инициализирует глобальные структуры рантайма (планировщик, аллокатор и т. п.)
-      2. настраивает TLS (Thread Local Storage) для горутин
-      3. создаёт первую горутину (main goroutine)
-      4. запускает планировщик
-   3. **runtime.main** — вызывает для пакетов `init()`-функции, передаёт управление в пользовательскую функцию `main.main`.
+   - **_rt0_amd64_linux** — при первом старте запускается из Assembler-вставки **_rt0_amd64_linux**. Именно адрес этой функции указан в **e_entry ELF-файла**, который Linux пишет в регистр **RIP**. Это просто точка входа, которая вызывает **runtime.rt0_go**.
+   - **runtime.rt0_go** — инициализирует рантайм и передаёт управление **runtime.main**. Но что значит «настраивает рантайм»:
+     - инициализирует глобальные структуры рантайма (планировщик, аллокатор и т. п.)
+     - настраивает TLS (Thread Local Storage) для горутин
+     - создаёт первую горутину (main goroutine)
+     - запускает планировщик
+     - **runtime.main** — вызывает для пакетов `init()`-функции, передаёт управление в пользовательскую функцию `main.main`.
 2. Для обработки **сигналов ОС до запуска горутин**.
 3. Для первых и всех последующих **вызовов C-кода**.
 
@@ -110,8 +116,8 @@ func func2(x int) int {
 ─────────────────────────────────────
 100     [ runtime frame       ]
 96      [ return addr → runtime]
-88      [ saved RBP runtime   ]  ← RBP = 88
-80      [                     ]  ← RSP = 80
+88      [ saved RBP runtime   ]  <- RBP = 88
+80      [                     ]  <- RSP = 80
 ```
 
 ------
@@ -121,16 +127,16 @@ func func2(x int) int {
 ```assembly
 # -> func main() [пролог main]
 cmp  0x10(%r14), %rsp   # r14 = g (горутина), 0x10(g) = stackguard0
-jbe  46fbab             # если RSP <= stackguard → прыгаем на morestack
+jbe  46fbab             # если RSP <= stackguard -> прыгаем на morestack
 stack:
-Адрес 100  ┌──────────────────────┐ ← начало стека (высокие адреса)
+Адрес 100  ┌──────────────────────┐ <- начало стека (высокие адреса)
            │   runtime frame      │
            │   main frame         │
            │   func1 frame        │
            │   ...                │
-Адрес  8   │──────────────────────│ ← stackguard0
-           │   RED ZONE           │
-Адрес  0   └──────────────────────┘ ← конец памяти (низкие адреса)
+Адрес  8   │──────────────────────│ <- stackguard0
+           │             					│
+Адрес  0   └──────────────────────┘ <- конец памяти (низкие адреса)
 ```
 
 ------
@@ -141,9 +147,9 @@ stack:
 
 ```assembly
 # -> func main() [пролог main]
-push  %rbp       # ① RSP = 80-8 = 72, записывает старый RBP
-mov   %rsp,%rbp  # ② RBP = 72
-sub   $0x8,%rsp  # ③ RSP = 72-8 = 64
+push  %rbp       # RSP = 80-8 = 72, записывает старый RBP
+mov   %rsp,%rbp  # RBP = 72
+sub   $0x8,%rsp  # RSP = 72-8 = 64
 stack:
 Адрес   Содержимое              Кто
 ──────────────────────────────────────────────
@@ -151,8 +157,8 @@ stack:
 96      [ return addr →runtime]
 88      [ saved RBP runtime  ]
 ─────────────────────────────── фрейм main ───
-72      [ saved RBP runtime  ]  ← push %rbp   RBP=72
-64      [ arg spill slot     ]  ← sub $0x8    RSP=64
+72      [ saved RBP runtime  ]  <- push %rbp   RBP=72
+64      [ arg spill slot     ]  <- sub $0x8    RSP=64
 ```
 
 ------
@@ -174,8 +180,7 @@ stack:
 ─────────────────────────────── фрейм main ───
 72      [ saved RBP runtime     ]   RBP=72
 64      [ arg spill slot        ]
-56      [ return addr → main    ]  ← call запушил   RSP=56
-
+56      [ return addr → main    ]  <- call запушил   RSP=56
                                      RAX = 1  (аргумент x летит в регистре)
 ```
 
@@ -195,14 +200,14 @@ stack:
 88      [ saved RBP runtime     ]
 ─────────────────────────────────────────── фрейм main ───────────
 72      [ saved RBP runtime     ]
-64      [ arg spill slot        ] ← сюда func1 запишет x
-                                    (это 0x28 от RSP func1 = 24+16+8 = 48... = 64 ✓)
+64      [ arg spill slot        ] <- сюда func1 запишет x
+                                    (это 0x28 от RSP func1 = 24+16+8 = 48... = 64)
 56      [ return addr → main    ]
 ─────────────────────────────────────────── фрейм func1 ──────────
-48      [ saved RBP (main's)    ] ← push %rbp       RBP=48
-40      [ DWARF: y              ] ← RSP+0x10
-32      [ DWARF: x+y результат  ] ← RSP+0x08
-24      [ DWARF: return value   ] ← RSP+0x00         RSP=24
+48      [ saved RBP (main's)    ] <- push %rbp       RBP=48
+40      [ DWARF: y              ] <- RSP+0x10
+32      [ DWARF: x+y результат  ] <- RSP+0x08
+24      [ DWARF: return value   ] <- RSP+0x00         RSP=24
 ```
 
 ------
@@ -213,7 +218,7 @@ stack:
 mov  %rax, 0x28(%rsp)    # RAX=1  → адрес 24+40 = 64  (arg spill, фрейм MAIN!)
 movq $0x0, (%rsp)        # 0      → адрес 24           (DWARF: return value = 0)
 movq $0x1, 0x10(%rsp)    # 1      → адрес 24+16 = 40   (DWARF: y = 1)
-inc  %rax                # RAX = 1+1 = 2               ← ВСЯ РЕАЛЬНАЯ РАБОТА
+inc  %rax                # RAX = 1+1 = 2               <- ВСЯ РЕАЛЬНАЯ РАБОТА
 mov  %rax, 0x8(%rsp)     # 2      → адрес 24+8 = 32    (DWARF: x+y = 2)
 mov  %rax, (%rsp)        # 2      → адрес 24           (DWARF: return value = 2)
 stack:
@@ -223,15 +228,15 @@ stack:
 88      [RBP runtime]
 ──────────────────── фрейм main ──────────────────────
 72      [RBP runtime]
-64           1         ← x спилл (записан из RAX)      ← ФРЕЙМ MAIN!
+64           1         <- x спилл (записан из RAX)      <- ФРЕЙМ MAIN!
 56      [ret→main  ]
 ──────────────────── фрейм func1 ─────────────────────
 48      [RBP main  ]
-40           1         ← y=1    (DWARF only)
-32           2         ← x+y=2  (DWARF only)
-24           2         ← retval (DWARF only)
+40           1         <- y=1    (DWARF only)
+32           2         <- x+y=2  (DWARF only)
+24           2         <- retval (DWARF only)
 
-                       RAX = 2  ← реальный результат, живёт в регистре
+                       RAX = 2  <- реальный результат, живёт в регистре
 ```
 
 ------
@@ -251,7 +256,7 @@ stack:
 88      [RBP runtime]
 ──────────────────── фрейм main ──────────────────────
 72      [RBP runtime]
-64           1         ← вернулись в main
+64           1         <- вернулись в main
 56      [ret→main  ]
 ```
 
@@ -267,13 +272,13 @@ stack:
 ──────────────────────      ──────────────────────
 Адрес 88  [RBP runtime]     Адрес 88  [RBP runtime]
 Адрес 72  [RBP runtime]     Адрес 72  [RBP runtime]
-Адрес 64  [x спилл = 1] ←── Адрес 64  [x спилл = 1] (перезапишется)
+Адрес 64  [x спилл = 1] <-- Адрес 64  [x спилл = 1] (перезапишется)
 Адрес 56  [ret → main  ]    Адрес 56  [ret → main  ]
 ──────── мусор ─────────    ──── фрейм func2 ───────
-Адрес 48  [y=1  DWARF  ]    Адрес 48  [RBP main    ] ← push %rbp
+Адрес 48  [y=1  DWARF  ]    Адрес 48  [RBP main    ] <- push %rbp
 Адрес 40  [x+y=2 DWARF ]    Адрес 40  [DWARF: y=2  ]
 Адрес 32  [retval DWARF]    Адрес 32  [DWARF: x+y  ]
-Адрес 24  [retval DWARF]    Адрес 24  [DWARF: retval] ← RSP
+Адрес 24  [retval DWARF]    Адрес 24  [DWARF: retval] <- RSP
 ```
 
 При билде мы использовали настройку **`-gcflags="-N -l"`** для того, чтобы наглядно увидеть, как используется «стек как сущность». Наглядность нам нужна для того, чтобы понять, как именно устроен стек и как в «классическом, C-стиле» используются регистры и RAM. Отмечу сразу, что ПРИ использовании этих флагов **ухудшается производительность и увеличивается размер бинарника**, но делают отладку намного удобнее и увеличивают кол-во операций, что замедляет работу.
@@ -516,13 +521,13 @@ GOOS=linux GOARCH=amd64 go build -gcflags="-l -N" main.go
 objdump -d main > <filename>.s
 ```
 
-> P.S. да, да, assembler для Linux + x86-64, но запущен автор код на macos + m1. Однако, все твои приложения запускаются в кубере и как правило на образе с linux ядром и на машине скорее всего с x86-64 (Intel Xeon). Давай честно, нам надо смотреть на код (asm) для той пары OS + CPU, которая будет чаще встречаться в твоей практике
+> P.S. да, да, assembler для Linux + x86-64, но автор закпускает код на macos + m1. Однако, все твои приложения запускаются в кубере и как правило на образе с linux ядром и на машине скорее всего с x86-64 (Intel Xeon). Давай честно, нам надо смотреть на код (asm) для той пары OS + CPU, которая будет чаще встречаться в твоей практике
 
 ------
 
 # Копаем вглубь!
 
-## Указатели
+## Может указатель использовать? А может копировать? A может н...
 
 Указатель в GO это адрес в RAM, по которому в RAM лежит адрес, с которого в RAM начинаются данные на которые «ссылается» указатель. **В GO нет ссылок, есть только Указатели.** Ссылки - это и есть адрес начала некоторого значения, а Указатели как мы уже поняли это отдельная переменная и отдельный адрес в RAM который хранит адрес начала в RAM некоторого значения. Поэтому Ссылки всегда и только всегда могут относиться только к одной переменной, а вот Указатели можно переназначать на разные переменные и они поддерживают значение NULL или же в GO - NIL. При этом NIL это просто **адрес 0x00**, по которому на самом деле не лежит адрес на который этот указатель «ссылается», это лишь **соглашение**.
 
@@ -588,10 +593,10 @@ func _foo() uint8 {
 }
 
 GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go
-./main.go:73:2: b escapes to heap in _foo:
-./main.go:73:2:   flow: {heap} ← &b:
-./main.go:73:2:     from b (too large for stack) at ./main.go:73:2
-./main.go:73:2: moved to heap: b
+	b escapes to heap in _foo:
+	flow: {heap} <- &b:
+	from b (too large for stack) at ./main.go:73:2
+	moved to heap: b
 
 00000000004982e0 <main._foo>:
   cmpq	0x10(%r14), %rsp
@@ -630,13 +635,13 @@ func _foo() BigStruct {
 }
 
 GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go
-./main.go:73:2: b escapes to heap in _foo:
-./main.go:73:2:   flow: {heap} ← &b:
-./main.go:73:2:     from b (too large for stack) at ./main.go:73:2
-./main.go:73:2: moved to heap: b
-./main.go:64:2: s escapes to heap in main:
-./main.go:64:2:   flow: {heap} ← &s:
-./main.go:64:2:     from s (too large for stack) at ./main.go:64:2
+	b escapes to heap in _foo:
+	flow: {heap} <- &b:
+	from b (too large for stack) at ./main.go:73:2
+	moved to heap: b
+	s escapes to heap in main:
+	flow: {heap} <- &s:
+	from s (too large for stack) at ./main.go:64:2
 
 0000000000498280 <main.main>:
  …
@@ -727,7 +732,8 @@ assembler:
 	…
 	// копирует user в область стека main предназначенную для аргументов _foo_1
 	// Здесь самое интересное: компилятор чтобы не раздувать стек
-	// в качестве области return area и области аргументов для _foo_1
+  // в качестве области return area и области аргументов 
+	// (arg spill slot с которым мы уже знакому) для _foo_1
 	// использовал один и тот же блок памяти в стеке! Это адрес - 0x8(%rsp)
 	callq	0x474a42 <runtime.duffcopy+0x302>
 	…
@@ -795,25 +801,25 @@ func _foo_1(user *User) {
 }
 
 Escape analyze:
-./main.go:69:18: user.ID escapes to heap in _foo_1:
-./main.go:69:18:   flow: {storage for ... argument} ← &{storage for user.ID}:
-./main.go:69:18:     from user.ID (spill) at ./main.go:69:18
-./main.go:69:18:     from ... argument (slice-literal-element) at ./main.go:69:13
-./main.go:69:18:   flow: {heap} ← {storage for ... argument}:
-./main.go:69:18:     from ... argument (spill) at ./main.go:69:13
-./main.go:69:18:     from fmt.Println(... argument...) (call parameter) at ./main.go:69:13
-./main.go:68:13: user does not escape
-./main.go:69:13: ... argument does not escape
-./main.go:69:18: user.ID escapes to heap
+	user.ID escapes to heap in _foo_1:
+	flow: {storage for ... argument} <- &{storage for user.ID}:
+	from user.ID (spill) at ./main.go:69:18
+	from ... argument (slice-literal-element) at ./main.go:69:13
+	flow: {heap} <- {storage for ... argument}:
+	from ... argument (spill) at ./main.go:69:13
+	from fmt.Println(... argument...) (call parameter) at ./main.go:69:13
+	user does not escape
+	... argument does not escape
+	user.ID escapes to heap
 
 Стек main визуально:
-	rsp+0x000 user.ID (return area ← _foo пишет сюда)
+	rsp+0x000 user.ID (return area <- _foo пишет сюда)
 	rsp+0x008 user.Birthday 
 	rsp+0x020 user.Login 
 	rsp+0x087 
 	конец User 
 	─────────────────────────────
-	rsp+0x098 user.ID (копия = переменная user) ← &user = rsp+0x98 
+	rsp+0x098 user.ID (копия = переменная user) <- &user = rsp+0x98 
 	rsp+0x0a0 user.Birthday rsp+0x0b8 user.Login 
 	rsp+0x11f 
 	конец копии 
@@ -1042,13 +1048,172 @@ escape analyze:
 
 #### Кейс 6: ловушка interface value{}
 
+На самом деле, дальше мы подробно поговорим про inteface value{}, сейчас нам важно понять одну: использование интерфейсного значение, это всегда и только всегда побег в кучу.
 
+> P.S. дальше по тексту встретишь термин - GO рантайм для функций, который нужно передать/сохранить как значение, всегда создает структуру funcval из которой он понимает как запускать эту твою функцию
+>
+> ```go
+> go func(){}() 							-> создан объект funcval func(){}
+> workerPool.Submit(func(){}) -> создан объект funcval func(){}
+> ```
+
+```go
+// :)
+type ДелательВпечатлений interface {
+	ДелайВаау() error
+	ДелайКруто() error
+}
+
+type myCoolImpl struct {}
+func(i *myCoolImpl) ДелайВаау() error {return nil}
+func(i *myCoolImpl) ДелайКруто() error {return nil}
+
+type contacts struct{
+	email string
+}
+type user struct {
+	id uint64
+	contacts *contacts
+}
+
+type untypedUser struct {
+	id 		 unsafe.Pointer
+	contacts unsafe.Pointer
+}
+
+type myIface struct {
+	funcvalsNames []string
+	funcvals []unsafe.Pointer
+	data unsafe.Pointer
+}
+
+func main() {
+	// -----> localImpl does not escape
+	impl1 := myCoolImpl{}
+	_foo_1(&impl1) // -> заметь здесь тоже берем указатель
+                 //	 но как мы уже знаем, компилятор может доказать
+                 //	 что этот указатель никуда не убежит за пределы
+                 //	 main, поэтому достаточно передать указатель
+                 // 	 область где лежит в стеке main impl1
+
+	// -----> moved to heap: impl2
+	impl2 := myCoolImpl{}
+	_foo_2(&impl2)	// -> создается и копируется 
+                  //    в регистры iface, но вот impl1 убегает в кучу
+                  //	  iface{&impl2}.
+                  //
+                  //	P.S. кст, сбилди сам asm и посмотри, куда будет все-таки
+                  //	размещен iface:
+                  //	1) в знакомый нам уже arg spill slot на стеке main
+                  //	2) или же раскидается на два регистра 
+	
+	// если iface{*type, *data} то есть два указателя
+	// то логично что и contacts: &contacts должна убежать, логично?
+	// Нооо упс... :(
+	// -----> ./main.go:48:26: &contacts{} does not escape
+	user1 := user{contacts: &contacts{}}
+	_foo_3(user1)
+
+	// может надо contacts разместить на стеке?
+	// и снова молчит escape анализ, упс...
+	contacts2 := contacts{}
+	user2 := user{contacts: &contacts2}
+	_foo_3(user2)
+
+	// iface.data является unsafe.Pointer'ом, может дело все в нем
+	// то уже с untypedUser точно убежит contacts3 (да и id3)!!
+	// Нооо упс... :(
+	// -----> localUntypedUser does not escape
+	id3 := 1
+	contacts3 := contacts{}
+	user3 := untypedUser{
+		id: unsafe.Pointer(&id3),
+		contacts: unsafe.Pointer(&contacts3),
+	}
+	_foo_4(user3)
+
+	// iface хранит объекты funcvals для методов
+	// может вот в чем дело?
+	// Бинго!
+	// -----> &myCoolImpl{} escapes to heap
+	// -----> impl3.ДелайВаау escapes to heap
+	// -----> impl3.ДелайКруто escapes to heap
+	impl3 := &myCoolImpl{}
+	methodДелайВаау := impl3.ДелайВаау	 // создали объект funcval
+	methodДелайКруто := impl3.ДелайКруто // создали объект funcval
+	iface := myIface{
+		funcvalsNames: []string{
+			"ДелайВаау", "ДелайКруто",
+		},
+		funcvals: []unsafe.Pointer{
+			unsafe.Pointer(&methodДелайВаау),  // cоздали указатель на указатель - **funcval
+			unsafe.Pointer(&methodДелайКруто), // cоздали указатель на указатель - **funcval
+		},
+		data: unsafe.Pointer(impl3),
+	}
+	_foo_5(iface)
+
+	// -----> cnt escapes to heap
+	var cnt int
+	fmt.Println(cnt) 	// -> создается и копируется 
+                    //    в регистры eface, но вот cnt убегает в кучу
+                    //	  eface{&impl2}.
+}
+
+func _foo_1(localImpl *myCoolImpl) {
+	_ = localImpl.ДелайВаау()
+}
+
+func _foo_2(делатель ДелательВпечатлений) {
+	_ = делатель.ДелайКруто()
+}
+
+func _foo_3(localUser user) {
+	localUser.contacts.email = "email@mail.com"
+}
+
+func _foo_4(localUntypedUser untypedUser) {
+	restoredConacts := (*contacts)(localUntypedUser.contacts)
+	restoredConacts.email = "email@mail.com"
+}
+
+func _foo_5(localMyIface myIface) {
+	for idx := 0; idx < len(localMyIface.funcvals); idx++ {
+     // создаем указатель на указатель - **funcval :)
+     var fn *func() error
+
+     // Да я знаю, это просто п... Не на до такое в prod'е писать автор будет негодовать :)
+     // Мы буквально говорим вещи которые на интуитивно понятны
+     // что значение unsafe.Pointer(&fn) является указателем на указатель, ведь мы
+     // буквально это и сделали шагом ранее:
+     // 		`methodДелайВаау := impl3.ДелайВаау -> unsafe.Pointer(&methodДелайВаау)`
+     // то есть:
+     //		`*funcval (полуичили указатель на объект в куче funcval) 
+     //		-> и взяли указатель на указатель **funcval`
+     // Этой конструкций мы p типизировали как **func() error (то есть **funcval как бы "типизировали")
+     p := (*unsafe.Pointer)(unsafe.Pointer(&fn))
+
+     // в значение указателя записываем указатель на наш исходный
+     // **funcval 
+     *p = localMyIface.funcvals[idx]
+
+     if fn != nil {
+       // ** кастуем в *
+       // :)   
+       _ = (*fn)()
+     }
+    
+   }
+}
+```
+
+Ты можешь подумать, что причина утягивания в кучу в funcval, но на самом деле не совсем. Потом мы поговорим еще чуть побродней на эту тему. Сейчас нам важен сам факт: "создал interface value{} - переменная убежала со стека в кучу, всегда и только всегда"
 
 ---
 
 #### Кейс 7: ловушка с funcval
 
-
+Мы еще узнаем 
 
 Более того, создание любой горутину автоматически создаст funcval в куче, а в примере ниже, еще и из-за того, что receiver у метода GetID берет указатель, то funcval утащит локальную переменную на стеке main в кучу :)
 
@@ -1205,32 +1370,34 @@ func runtime.main() {
     // ...etc
     exit(0)
 }
+
+// Знакомься - это GO ASM (P.S. автору было лень билдить, автор серфил github:)
 TEXT runtime·rt0_go:
 
-    ; !!! LINUX ПРИ МОНТИРОВАНИИ ПРОЦЕССА САМ СОЗДАЁТ ПЕРВЫЙ ПОТОК — MAIN THREAD !!!
+    # !!! LINUX ПРИ МОНТИРОВАНИИ ПРОЦЕССА САМ СОЗДАЁТ ПЕРВЫЙ ПОТОК — MAIN THREAD !!!
 
-    ; 1. инициализируем стек g0 — это реальный стек OS-потока
-    MOVQ $g0,  R14              ; R14 = TLS, теперь getg() вернёт &g0
+    # 1. инициализируем стек g0 — это реальный стек OS-потока
+    MOVQ $g0,  R14              # R14 = TLS, теперь getg() вернёт &g0
     LEAQ g0(SB), R0
-    MOVQ SP, g_stacklo(R0)      ; нижняя граница стека g0
+    MOVQ SP, g_stacklo(R0)      # нижняя граница стека g0
 
-    ; 2. связываем m0 ↔ g0
+    # 2. связываем m0 ↔ g0
     LEAQ m0(SB), R0
-    MOVQ R0, g_m(g0)            ; g0.m = &m0
-    MOVQ $g0, m_g0(R0)          ; m0.g0 = &g0
+    MOVQ R0, g_m(g0)            # g0.m = &m0
+    MOVQ $g0, m_g0(R0)          # m0.g0 = &g0
 
-    ; 3. инициализация runtime
+    # 3. инициализация runtime
     CALL runtime·check(SB)
     CALL runtime·args(SB)
     CALL runtime·osinit(SB)
-    CALL runtime·schedinit(SB)  ; создаёт P'шники, GOMAXPROCS
+    CALL runtime·schedinit(SB)  # создаёт P'шники, GOMAXPROCS
 
-    ; 4. создаём main горутину
+    # 4. создаём main горутину
     MOVQ $runtime·main(SB), AX
-    CALL runtime·newproc(SB)    ; ← вот здесь создаётся G для main
+    CALL runtime·newproc(SB)    # <- вот здесь создаётся G для main
 
-    ; 5. запускаем m0
-    CALL runtime·mstart(SB)     ; m0 берёт main G и начинает выполнение
+    # 5. запускаем m0
+    CALL runtime·mstart(SB)     # m0 берёт main G и начинает выполнение
 ```
 
 То есть на старте создаётся 2 потока Linux, а остальные рантайм создаёт строго тогда, когда:
@@ -1972,8 +2139,8 @@ Go 1.25 вводит два изменения в поведение GOMAXPROCS 
 
 Узел: 32 CPU
 Pod CPU limit: 2
-GOMAXPROCS до 1.25: 32  ← рантайм видел всё ядро машины
-GOMAXPROCS в 1.25:   2  ← рантайм читает cgroup
+GOMAXPROCS до 1.25: 32  <- рантайм видел всё ядро машины
+GOMAXPROCS в 1.25:   2  <- рантайм читает cgroup
 
 При неправильном GOMAXPROCS возникало: избыточное переключение контекста (счётчик context switch вырастал в ~4 раза), CPU throttling (ожидание CPU достигало пиков в 34 секунды вместо миллисекунд), и GC amplification — GC масштабировал параллельную маркировку под GOMAXPROCS, запуская намного больше воркеров чем могли обработать доступные CPU.
 
