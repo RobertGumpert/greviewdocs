@@ -29,46 +29,46 @@ func func2(x int) int {
 # GOOS=linux GOARCH=amd64 go build -gcflags="-l -N" main.go
 
 000000000046fb80 <main.main>:
-  cmpq	0x10(%r14), %rsp
-  jbe	0x46fbab <main.main+0x2b>
-  pushq	%rbp
-  movq	%rsp, %rbp
-  subq	$0x8, %rsp
-  movl	$0x1, %eax
-  callq	0x46fbc0 <main.func1>
-  movl	$0x2, %eax
-  nopl	(%rax)
-  callq	0x46fc00 <main.func2>
-  addq	$0x8, %rsp
-  popq	%rbp
+  cmpq  0x10(%r14), %rsp
+  jbe   0x46fbab <main.main+0x2b>
+  pushq %rbp
+  movq  %rsp, %rbp
+  subq  $0x8, %rsp
+  movl  $0x1, %eax
+  callq 0x46fbc0 <main.func1>
+  movl  $0x2, %eax
+  nopl  (%rax)
+  callq 0x46fc00 <main.func2>
+  addq  $0x8, %rsp
+  popq  %rbp
   retq
-  callq	0x46aa80 <runtime.morestack_noctxt.abi0>
-  jmp	0x46fb80 <main.main>
+  callq 0x46aa80 <runtime.morestack_noctxt.abi0>
+  jmp   0x46fb80 <main.main>
 
 000000000046fbc0 <main.func1>:
-  pushq	%rbp
-  movq	%rsp, %rbp
-  subq	$0x10, %rsp
-  movq	%rax, 0x20(%rsp)
-  movq	$0x0, (%rsp)
-  movq	$0x1, 0x8(%rsp)
-  incq	%rax
-  movq	%rax, (%rsp)
-  addq	$0x10, %rsp
-  popq	%rbp
+  pushq %rbp
+  movq  %rsp, %rbp
+  subq  $0x10, %rsp
+  movq  %rax, 0x20(%rsp)
+  movq  $0x0, (%rsp)
+  movq  $0x1, 0x8(%rsp)
+  incq  %rax
+  movq  %rax, (%rsp)
+  addq  $0x10, %rsp
+  popq  %rbp
   retq
 
 000000000046fc00 <main.func2>:
-  pushq	%rbp
-  movq	%rsp, %rbp
-  subq	$0x10, %rsp
-  movq	%rax, 0x20(%rsp)
-  movq	$0x0, (%rsp)
-  movq	$0x1, 0x8(%rsp)
-  incq	%rax
-  movq	%rax, (%rsp)
-  addq	$0x10, %rsp
-  popq	%rbp
+  pushq %rbp
+  movq  %rsp, %rbp
+  subq  $0x10, %rsp
+  movq  %rax, 0x20(%rsp)
+  movq  $0x0, (%rsp)
+  movq  $0x1, 0x8(%rsp)
+  incq  %rax
+  movq  %rax, (%rsp)
+  addq  $0x10, %rsp
+  popq  %rbp
   retq
 ```
 
@@ -155,17 +155,17 @@ func func2(x int) int {
 > *P.S.: причем обрати внимание на то, что по адресу 952 компилятор вставил zero value для int'а (то есть 0) в который позже запишется результат сложения X + Y (это потому что мы использовали флаг -N ). С этим флагом, компилятор билдит код ровно так, как ты этого ожидаешь (как видишь в исходном виде): сначала надо создать переменную, а потом ее заполнить. Когда мы будем дальше с тобой говорить про Оптимизации Компилятора мы с тобой узнаем, что базое поведение компилятора сделать так, чтобы уменьшить кол-во инструкций и кол-во записей в RAM, а значит если убрать флаг -N, то этой инструкции вообще не будет :)*
 >
 > ```assembly
-> movq	$0x0, (%rsp)
+> movq  $0x0, (%rsp)
 > ```
 >
 > Более того, есть такой стандарт в Linux - **DWARF**. Который компилятору диктует правила по кол-ву инструкций и их назначению, который нужно добавить в бинарник, для того чтобы ты смог дебажить свое приложение. Так вот эта инструкция добавлено для этого:
 >
 > ```go
 > // давай немного видоизменим функцию
-> var y int = 1	// строка: 1
-> var res int		// строка: 2
-> res = x + y		// строка: 3 <---- (debug pointer)
-> return res		// строка: 4
+> var y int = 1 // строка: 1
+> var res int       // строка: 2
+> res = x + y       // строка: 3 <---- (debug pointer)
+> return res        // строка: 4
 > ```
 >
 > Если бы, не было `movq $0x0, (%rsp)`, то переменной `res` вообще бы несуществовало на точке остановы, на строке 3, когда ты дебажишь свое приложение. Поэтому когда ты запускаешь дебаг, то компилятор всегда билдит твое приложение в флагом `-N` (да и с `-l` на самом деле :)
@@ -189,30 +189,30 @@ func func2(x int) int {
 
 ```assembly
 000000000046fb80 <main.main>:
-	# ... etc                               
+    # ... etc                               
                                 # Вернулись из main.func1: RSP = 984, RBP = 992, 
-                                # RIP={адрес movl	$0x2, %eax}
+                                # RIP={адрес movl   $0x2, %eax}
                                 #  
-  movl	$0x2, %eax              # в регистр EAX (RAX) запишем константу 2 (это аргумент для func2)
-  nopl	(%rax)                  # буквально ни черта не делает и нужна только
+  movl  $0x2, %eax              # в регистр EAX (RAX) запишем константу 2 (это аргумент для func2)
+  nopl  (%rax)                  # буквально ни черта не делает и нужна только
                                 # для выравнивания. если ты что слышал/знаешь о выравнивании
                                 # структур GO (о которых мы еще поговорим), то GO тоже самое делает
                                 # для бинарника и преследует такою же цель, что и со структурами :) 
-  callq	0x46fc00 <main.func2>   # тут все тоже самое :)
+  callq 0x46fc00 <main.func2>   # тут все тоже самое :)
                                 # Перед входом в main.func2: RSP = 976, RBP = 992 
                                 # ...ждем 
                                 # Вернулись из main.func2: RSP = 984, RBP = 992, 
-                                # RIP={адрес addq	$0x8, %rsp}
-  addq	$0x8, %rsp              # уже знакомые нам иснтрукции :)      
-  popq	%rbp                    # уже знакомые нам иснтрукции :)
+                                # RIP={адрес addq   $0x8, %rsp}
+  addq  $0x8, %rsp              # уже знакомые нам иснтрукции :)      
+  popq  %rbp                    # уже знакомые нам иснтрукции :)
   retq                          # уже знакомые нам иснтрукции :)
                                 #
                                 # [Итого]
                                 # RSP = 1000, RBP = 1200, 
                                 # RIP={адрес некоторой инструкции из runtime.main}
 
-  callq	0x46aa80 <runtime.morestack_noctxt.abi0> # увеличиваем стек G
-  jmp	0x46fb80 <main.main>                       # прыгаем вновь в cmpq	0x10(%r14), %rsp :)
+  callq 0x46aa80 <runtime.morestack_noctxt.abi0> # увеличиваем стек G
+  jmp   0x46fb80 <main.main>                       # прыгаем вновь в cmpq   0x10(%r14), %rsp :)
   
 
 000000000046fc00 <main.func2>:
@@ -220,27 +220,27 @@ func func2(x int) int {
   # поэтому уже знакомые инструкции выполняются вновь
   # но уже в контексте "потока выполнения" main.func2 :)
   #
-  pushq	%rbp              # RSP = 976, значит RSP - 8 = 968. 
+  pushq %rbp              # RSP = 976, значит RSP - 8 = 968. 
                           # RAM[968] -> 992
-  movq	%rsp, %rbp        # RSP -> RBP, RBP = 968
-  subq	$0x10, %rsp       # RSP - 16 = 952
+  movq  %rsp, %rbp        # RSP -> RBP, RBP = 968
+  subq  $0x10, %rsp       # RSP - 16 = 952
                           #
                           # [Итого]
                           # RSP = 952, RBP = 968
                           # ...[992-984]...[968-952]...
                           # ....(main)......(func2)....
-  movq	%rax, 0x20(%rsp)  # пишем аргумент 1 и вновь на стек main :)
+  movq  %rax, 0x20(%rsp)  # пишем аргумент 1 и вновь на стек main :)
                           # RSP + 36 -> 984.
-  movq	$0x0, (%rsp)      # пишем 0 по адресу RSP = 952
-  movq	$0x1, 0x8(%rsp)   # пишем 1 по адресу RSP + 8 = 960 (это наша var y int = 1)
-  incq	%rax              # выполняет сложение аргумента 1 и 1 (и вновь y не используется :)
-  movq	%rax, (%rsp)      # сохраняет на стек main.func2 результат сложения
-  addq	$0x10, %rsp       # уже знакомые нам иснтрукции :)
-  popq	%rbp              # уже знакомые нам иснтрукции :)
+  movq  $0x0, (%rsp)      # пишем 0 по адресу RSP = 952
+  movq  $0x1, 0x8(%rsp)   # пишем 1 по адресу RSP + 8 = 960 (это наша var y int = 1)
+  incq  %rax              # выполняет сложение аргумента 1 и 1 (и вновь y не используется :)
+  movq  %rax, (%rsp)      # сохраняет на стек main.func2 результат сложения
+  addq  $0x10, %rsp       # уже знакомые нам иснтрукции :)
+  popq  %rbp              # уже знакомые нам иснтрукции :)
   retq                    # уже знакомые нам иснтрукции :)
                           #
                           # [Итого]
-                          # RSP = 984, RBP = 992, RIP={адрес addq	$0x8, %rsp}
+                          # RSP = 984, RBP = 992, RIP={адрес addq   $0x8, %rsp}
 ```
 
 ------
@@ -251,13 +251,13 @@ func func2(x int) int {
 000000000046fb80 <main.main>:
   # пускай на входе в main.main: RSP=1000, RBP=1200
   #
-  cmpq	0x10(%r14), %rsp        # проверка границы стека G 
-  jbe	0x46fbab <main.main+0x2b> # прыжок на увеличение стека                     
-  pushq	%rbp                    # pushq выполнит RSP-8 = 1000 - 8 = 992 и 
+  cmpq  0x10(%r14), %rsp        # проверка границы стека G 
+  jbe   0x46fbab <main.main+0x2b> # прыжок на увеличение стека                     
+  pushq %rbp                    # pushq выполнит RSP-8 = 1000 - 8 = 992 и 
                                 # и по адресу 992 сохранит значение RBP:
                                 # RAM[992] -> 1200
-  movq	%rsp, %rbp              # копируем в RBP значение RSP: RBP = 992
-  subq	$0x8, %rsp              # сдвигаем RSP - 8 = 984
+  movq  %rsp, %rbp              # копируем в RBP значение RSP: RBP = 992
+  subq  $0x8, %rsp              # сдвигаем RSP - 8 = 984
                                 #
                                 # [Итого] 
                                 # RSP = 984, RBP = 992
@@ -265,51 +265,51 @@ func func2(x int) int {
                                 # где RBP указывает на вершину стека main.main, а RSP указывает
                                 # на дно стека main.main ;)
                                 #  
-  movl	$0x1, %eax              # в регистр EAX (RAX) запишем константу 1 (это аргумент для func1)
-  callq	0x46fbc0 <main.func1>   # здесь выполним вызов func1. callq делает три вещи:
+  movl  $0x1, %eax              # в регистр EAX (RAX) запишем константу 1 (это аргумент для func1)
+  callq 0x46fbc0 <main.func1>   # здесь выполним вызов func1. callq делает три вещи:
                                 # 1) вычисляет адрес для стека RSP - 8 = 976
                                 # 2) на стек main.main по адресу 976 запишет адрес следующей
                                 #    инструкции, которую нужно выполнить после возврата из callq,
                                 #    а этот адрес будет равен адресу в секции text 
-                                #    для иснтрукции `movl	$0x2, %eax`
+                                #    для иснтрукции `movl   $0x2, %eax`
                                 # 3) выполняет инструкцию jmp по адресу main.func1 - этот адрес
                                 #    уже указан прям в самой инструкции 0x46fbc0
                                 #
                                 # Перед входом в main.func1: RSP = 976, RBP = 992 
                                 # ...ждем 
                                 # Вернулись из main.func1: RSP = 984, RBP = 992, 
-                                # RIP={адрес movl	$0x2, %eax}
+                                # RIP={адрес movl   $0x2, %eax}
                                 #  
-  movl	$0x2, %eax              # в регистр EAX (RAX) запишем константу 2 (это аргумент для func2)
-  nopl	(%rax)                  # буквально ни черта не делает и нужна только
+  movl  $0x2, %eax              # в регистр EAX (RAX) запишем константу 2 (это аргумент для func2)
+  nopl  (%rax)                  # буквально ни черта не делает и нужна только
                                 # для выравнивания. если ты что слышал/знаешь о выравнивании
                                 # структур GO (о которых мы еще поговорим), то GO тоже самое делает
                                 # для бинарника и преследует такою же цель, что и со структурами :) 
-  callq	0x46fc00 <main.func2>   # тут все тоже самое :)
+  callq 0x46fc00 <main.func2>   # тут все тоже самое :)
                                 # Перед входом в main.func2: RSP = 976, RBP = 992 
                                 # ...ждем 
                                 # Вернулись из main.func2: RSP = 984, RBP = 992, 
-                                # RIP={адрес addq	$0x8, %rsp}
-  addq	$0x8, %rsp              # уже знакомые нам иснтрукции :)      
-  popq	%rbp                    # уже знакомые нам иснтрукции :)
+                                # RIP={адрес addq   $0x8, %rsp}
+  addq  $0x8, %rsp              # уже знакомые нам иснтрукции :)      
+  popq  %rbp                    # уже знакомые нам иснтрукции :)
   retq                          # уже знакомые нам иснтрукции :)
                                 #
                                 # [Итого]
                                 # RSP = 1000, RBP = 1200, 
                                 # RIP={адрес некоторой инструкции из runtime.main}
 
-  callq	0x46aa80 <runtime.morestack_noctxt.abi0> # увеличиваем стек G
-  jmp	0x46fb80 <main.main>                       # прыгаем вновь в cmpq	0x10(%r14), %rsp :)
+  callq 0x46aa80 <runtime.morestack_noctxt.abi0> # увеличиваем стек G
+  jmp   0x46fb80 <main.main>                       # прыгаем вновь в cmpq   0x10(%r14), %rsp :)
   
 000000000046fbc0 <main.func1>:
   # RSP = 976, RBP = 992 
   # поэтому уже знакомые инструкции выполняются вновь
   # но уже в контексте "потока выполнения" main.func1 :)
   #
-  pushq	%rbp              # RSP = 976, значит RSP - 8 = 968. 
+  pushq %rbp              # RSP = 976, значит RSP - 8 = 968. 
                           # RAM[968] -> 992
-  movq	%rsp, %rbp        # RSP -> RBP, RBP = 968
-  subq	$0x10, %rsp       # RSP - 16 = 952
+  movq  %rsp, %rbp        # RSP -> RBP, RBP = 968
+  subq  $0x10, %rsp       # RSP - 16 = 952
                           #
                           # [Итого]
                           # RSP = 952, RBP = 968
@@ -320,17 +320,17 @@ func func2(x int) int {
                           # ...[992-984]...[968-952]...
                           # ....(main)......(func1)....
                           #
-  movq	%rax, 0x20(%rsp)  # в RAX, в main, было записана 1, эту 1 пишем
+  movq  %rax, 0x20(%rsp)  # в RAX, в main, было записана 1, эту 1 пишем
                           # за пределеы стек-фрема main.func1 -> RSP + 36 -> 984.
                           # то есть в стек-фрейм main.main записали ее же аргумент :) 
-  movq	$0x0, (%rsp)      # пишем 0 по адресу RSP = 952
-  movq	$0x1, 0x8(%rsp)   # пишем 1 по адресу RSP + 8 = 960 (это наша var y int = 1)
-  incq	%rax              # выполняет сложение аргумента 1 и 1 
-  												# (обрати внимание y со стека не используется :) 
-  movq	%rax, (%rsp)      # сохраняет на стек main.func1 результат сложения
+  movq  $0x0, (%rsp)      # пишем 0 по адресу RSP = 952
+  movq  $0x1, 0x8(%rsp)   # пишем 1 по адресу RSP + 8 = 960 (это наша var y int = 1)
+  incq  %rax              # выполняет сложение аргумента 1 и 1 
+                                                # (обрати внимание y со стека не используется :) 
+  movq  %rax, (%rsp)      # сохраняет на стек main.func1 результат сложения
                           # равный 2, по адресу RSP = 952
-  addq	$0x10, %rsp       # "уничтожаем" стек main.func1 -> RSP + 16 -> RSP=968
-  popq	%rbp              # popq делает две вещи: 
+  addq  $0x10, %rsp       # "уничтожаем" стек main.func1 -> RSP + 16 -> RSP=968
+  popq  %rbp              # popq делает две вещи: 
                           # 1) берет старое значение RBP из стек-фрейма,
                           #    используя адрес указанный в RBP 
                           #       RBP=968 -> RAM[968]=992 -> RBP=992
@@ -338,12 +338,12 @@ func func2(x int) int {
                           #       RSP + 8 -> RSP=976
   retq                    # retq делает три вещи:
                           # 1) по адресу из RSP в RAM берет следующую инструкцию
-                          #       RSP=976 -> RAM[976]={адрес movl	$0x2, %eax}
+                          #       RSP=976 -> RAM[976]={адрес movl   $0x2, %eax}
                           # 2) восстанавливает RSP main.main -> RSP + 8 -> RSP=984
-                          # 3) ставит RIP = {адрес movl	$0x2, %eax}
+                          # 3) ставит RIP = {адрес movl $0x2, %eax}
                           #
                           # [Итого]
-                          # RSP = 984, RBP = 992, RIP={адрес movl	$0x2, %eax}
+                          # RSP = 984, RBP = 992, RIP={адрес movl   $0x2, %eax}
 
 
 000000000046fc00 <main.func2>:
@@ -351,27 +351,27 @@ func func2(x int) int {
   # поэтому уже знакомые инструкции выполняются вновь
   # но уже в контексте "потока выполнения" main.func2 :)
   #
-  pushq	%rbp              # RSP = 976, значит RSP - 8 = 968. 
+  pushq %rbp              # RSP = 976, значит RSP - 8 = 968. 
                           # RAM[968] -> 992
-  movq	%rsp, %rbp        # RSP -> RBP, RBP = 968
-  subq	$0x10, %rsp       # RSP - 16 = 952
+  movq  %rsp, %rbp        # RSP -> RBP, RBP = 968
+  subq  $0x10, %rsp       # RSP - 16 = 952
                           #
                           # [Итого]
                           # RSP = 952, RBP = 968
                           # ...[992-984]...[968-952]...
                           # ....(main)......(func2)....
-  movq	%rax, 0x20(%rsp)  # пишем аргумент 1 и вновь на стек main :)
+  movq  %rax, 0x20(%rsp)  # пишем аргумент 1 и вновь на стек main :)
                           # RSP + 36 -> 984.
-  movq	$0x0, (%rsp)      # пишем 0 по адресу RSP = 952
-  movq	$0x1, 0x8(%rsp)   # пишем 1 по адресу RSP + 8 = 960 (это наша var y int = 1)
-  incq	%rax              # выполняет сложение аргумента 1 и 1 (и вновь y не используется :)
-  movq	%rax, (%rsp)      # сохраняет на стек main.func2 результат сложения
-  addq	$0x10, %rsp       # уже знакомые нам иснтрукции :)
-  popq	%rbp              # уже знакомые нам иснтрукции :)
+  movq  $0x0, (%rsp)      # пишем 0 по адресу RSP = 952
+  movq  $0x1, 0x8(%rsp)   # пишем 1 по адресу RSP + 8 = 960 (это наша var y int = 1)
+  incq  %rax              # выполняет сложение аргумента 1 и 1 (и вновь y не используется :)
+  movq  %rax, (%rsp)      # сохраняет на стек main.func2 результат сложения
+  addq  $0x10, %rsp       # уже знакомые нам иснтрукции :)
+  popq  %rbp              # уже знакомые нам иснтрукции :)
   retq                    # уже знакомые нам иснтрукции :)
                           #
                           # [Итого]
-                          # RSP = 984, RBP = 992, RIP={адрес addq	$0x8, %rsp}
+                          # RSP = 984, RBP = 992, RIP={адрес addq   $0x8, %rsp}
 ```
 
 Обрати теперь внимание на **assembler функции `func2`** — он использует те же смещения, что и `func1`. А что это значит? При возврате из `func1` всё что лежит по адресам 48-24, то есть по адресам бывшего стек-фрейма `func1`, считается мусором, и эти же адреса **компилятор вправе переиспользовать для стек-фрейма func2!**
@@ -412,27 +412,27 @@ func add(a, b int) int {
 
 ```assembly
 000000000046fb80 <main.main>:
-  cmpq	0x10(%r14), %rsp
-  jbe	0x46fbab <main.main+0x2b>
-  pushq	%rbp
-  movq	%rsp, %rbp
-  subq	$0x8, %rsp
-  movl	$0x1, %eax
-  callq	0x46fbc0 <main.func1>
-  movl	$0x2, %eax
-  nopl	(%rax)
-  callq	0x46fbe0 <main.func2>
-  addq	$0x8, %rsp
-  popq	%rbp
+  cmpq  0x10(%r14), %rsp
+  jbe   0x46fbab <main.main+0x2b>
+  pushq %rbp
+  movq  %rsp, %rbp
+  subq  $0x8, %rsp
+  movl  $0x1, %eax
+  callq 0x46fbc0 <main.func1>
+  movl  $0x2, %eax
+  nopl  (%rax)
+  callq 0x46fbe0 <main.func2>
+  addq  $0x8, %rsp
+  popq  %rbp
   retq
-  callq	0x46aa80 <runtime.morestack_noctxt.abi0>
-  jmp	0x46fb80 <main.main>
+  callq 0x46aa80 <runtime.morestack_noctxt.abi0>
+  jmp   0x46fb80 <main.main>
 
 000000000046fbc0 <main.func1>:
-  incq	%rax
+  incq  %rax
 
 000000000046fbe0 <main.func2>:
-  incq	%rax
+  incq  %rax
 ```
 
 ### Флаг -l отключит такие оптимизации
@@ -557,9 +557,9 @@ func main() {
    ```go
    type String struct {
        len  int
-       backing_array unsafe.Pointer 	// адрес (указатель) первого элемента [0] массива байт
-                           					// на массив байт в куче
-                           					// (но может и в .rodata, если строка известна на этапе компиляции)
+       backing_array unsafe.Pointer     // адрес (указатель) первого элемента [0] массива байт
+                                            // на массив байт в куче
+                                            // (но может и в .rodata, если строка известна на этапе компиляции)
    }
    ```
 
@@ -700,19 +700,19 @@ func _foo() uint8 {
 }
 
 GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go
-	b escapes to heap in _foo:
-	flow: {heap} <- &b:
-	from b (too large for stack) at ./main.go:73:2
-	moved to heap: b
+    b escapes to heap in _foo:
+    flow: {heap} <- &b:
+    from b (too large for stack) at ./main.go:73:2
+    moved to heap: b
 
 00000000004982e0 <main._foo>:
-  cmpq	0x10(%r14), %rsp
-  jbe	0x498316 <main._foo+0x36>
-  pushq	%rbp
-  movq	%rsp, %rbp
-  subq	$0x10, %rsp
-  leaq	0x1136b(%rip), %rax     # 0x4a9660 <type:*+0x10660>
-  callq	0x416120 <runtime.newobject>
+  cmpq  0x10(%r14), %rsp
+  jbe   0x498316 <main._foo+0x36>
+  pushq %rbp
+  movq  %rsp, %rbp
+  subq  $0x10, %rsp
+  leaq  0x1136b(%rip), %rax     # 0x4a9660 <type:*+0x10660>
+  callq 0x416120 <runtime.newobject>
 ```
 
 ---
@@ -742,25 +742,25 @@ func _foo() BigStruct {
 }
 
 GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go
-	b escapes to heap in _foo:
-	flow: {heap} <- &b:
-	from b (too large for stack) at ./main.go:73:2
-	moved to heap: b
-	s escapes to heap in main:
-	flow: {heap} <- &s:
-	from s (too large for stack) at ./main.go:64:2
+    b escapes to heap in _foo:
+    flow: {heap} <- &b:
+    from b (too large for stack) at ./main.go:73:2
+    moved to heap: b
+    s escapes to heap in main:
+    flow: {heap} <- &s:
+    from s (too large for stack) at ./main.go:64:2
 
 0000000000498280 <main.main>:
  …
- callq	0x416120 <runtime.newobject>
- movq	%rax, 0xf4250(%rsp)
- callq	0x498320 <main._foo>
+ callq  0x416120 <runtime.newobject>
+ movq   %rax, 0xf4250(%rsp)
+ callq  0x498320 <main._foo>
  …
 
 0000000000498320 <main._foo>:
- rep		stosq	%rax, %es:(%rdi)
- leaq	0x1131c(%rip), %rax     # 0x4a9660 <type:*+0x10660>
- callq	0x416120 <runtime.newobject>
+ rep        stosq   %rax, %es:(%rdi)
+ leaq   0x1131c(%rip), %rax     # 0x4a9660 <type:*+0x10660>
+ callq  0x416120 <runtime.newobject>
 
 ```
 
@@ -821,68 +821,68 @@ func _foo() (user User) {
 
 assembler:
 0000000000498280 <main.main>:
-	// ...etc
-	subq	$0x130, %rsp											// main резервирует 0x130 - 304 байа
-																					// структура User весит 152 байт, то есть как раз
+    // ...etc
+    subq    $0x130, %rsp                                            // main резервирует 0x130 - 304 байа
+                                                                                    // структура User весит 152 байт, то есть как раз
                                           // под return area + локальную переменную user
-																					// rsp+0x8 — это и есть начало return area для _foo
-																					// то бишь: 0x8-0xa0
-	callq	0x498380 <main._foo>
+                                                                                    // rsp+0x8 — это и есть начало return area для _foo
+                                                                                    // то бишь: 0x8-0xa0
+    callq   0x498380 <main._foo>
   // ... etc
-	leaq 0xa0(%rsp), %rdi   								// Сюда пишем: начиная с адреса 0xa0 и 
-																					// вверх по адресам записываем содержимое из return area,
-																					// тем сам создадим локальную переменную user (0xa0 - 0x138)
-																					// P.S.: 0xa0(%rsp) - это 
-																					//			 user.Login.RegistrationDate.Year (см. ниже)
-																					// 			 0xa0 = 160, -8 байт на сохраненый RBP, 
-																					// 			 как раз получается 152 байт, то есть размер User.
-	leaq 0x8(%rsp), %rsi    								// Отсюда копируем: начиная с адреса 0x8 копируем вверх,
-																					// к адресу 0xa0, то есть как раз 152 байта :)
-																					// P.S.: nо есть "бежим" по return area.
-	callq	0x474a42 <runtime.duffcopy+0x302>	// копирует, используя регистры rdi и rsi
-	// ...etc
-  leaq	0x8(%rsp), %rdi	  								// Сюда пишем: начиная с адреса 0x8 (return area) и вверх 
-	leaq	0xa0(%rsp), %rsi  								// до адреса 0xa0.
-	callq	0x474a42 <runtime.duffcopy+0x302> // Отсюда копируем: от адреса 0xa0 (user) и вверхдо адреса
-																					// 0x138. То есть GO переиспользует область памяти 0x8 - 0xa0
-																					// в разных целях:
-																					// 1) сначала для return area
-																					// 2) потом для spill slot
-	callq	0x498320 <main._foo_1>
+    leaq 0xa0(%rsp), %rdi                                   // Сюда пишем: начиная с адреса 0xa0 и 
+                                                                                    // вверх по адресам записываем содержимое из return area,
+                                                                                    // тем сам создадим локальную переменную user (0xa0 - 0x138)
+                                                                                    // P.S.: 0xa0(%rsp) - это 
+                                                                                    //           user.Login.RegistrationDate.Year (см. ниже)
+                                                                                    //           0xa0 = 160, -8 байт на сохраненый RBP, 
+                                                                                    //           как раз получается 152 байт, то есть размер User.
+    leaq 0x8(%rsp), %rsi                                    // Отсюда копируем: начиная с адреса 0x8 копируем вверх,
+                                                                                    // к адресу 0xa0, то есть как раз 152 байта :)
+                                                                                    // P.S.: nо есть "бежим" по return area.
+    callq   0x474a42 <runtime.duffcopy+0x302>   // копирует, используя регистры rdi и rsi
+    // ...etc
+  leaq  0x8(%rsp), %rdi                                 // Сюда пишем: начиная с адреса 0x8 (return area) и вверх 
+    leaq    0xa0(%rsp), %rsi                                // до адреса 0xa0.
+    callq   0x474a42 <runtime.duffcopy+0x302> // Отсюда копируем: от адреса 0xa0 (user) и вверхдо адреса
+                                                                                    // 0x138. То есть GO переиспользует область памяти 0x8 - 0xa0
+                                                                                    // в разных целях:
+                                                                                    // 1) сначала для return area
+                                                                                    // 2) потом для spill slot
+    callq   0x498320 <main._foo_1>
 
 0000000000498380 <main._foo>:
- 	pushq	%rbp
-  movq	%rsp, %rbp
-	// _foo не делает subq для своего буфера — своего буфера нет! RSP смортрит на фрейм main.main!
+    pushq   %rbp
+  movq  %rsp, %rbp
+    // _foo не делает subq для своего буфера — своего буфера нет! RSP смортрит на фрейм main.main!
   // ...etc
-	// создает zero-value для User
-  leaq	0x18(%rsp), %rdi							// RSP смотрит на фрейм main.main
+    // создает zero-value для User
+  leaq  0x18(%rsp), %rdi                            // RSP смотрит на фрейм main.main
   // ...etc
-	0x4746f9 <runtime.duffzero+0x139>
-	// пишет напрямую в стек main,
-	// путем смещения адреса в rsp
-	movq	$0x1, 0x18(%rsp)							// user.Birthday.Day = 1 
- 	movq	$0x2, 0x20(%rsp)							// user.Birthday.Month = 2
-  movq	$0x3, 0x28(%rsp)							// user.Birthday.Year = 3
+    0x4746f9 <runtime.duffzero+0x139>
+    // пишет напрямую в стек main,
+    // путем смещения адреса в rsp
+    movq    $0x1, 0x18(%rsp)                            // user.Birthday.Day = 1 
+    movq    $0x2, 0x20(%rsp)                            // user.Birthday.Month = 2
+  movq  $0x3, 0x28(%rsp)                            // user.Birthday.Year = 3
   // ...etc
-  movq	$0x6, 0xa0(%rsp)							// user.Login.RegistrationDate.Year = 6
-  movq	$0x7, 0x10(%rsp)							// user.ID
+  movq  $0x6, 0xa0(%rsp)                            // user.Login.RegistrationDate.Year = 6
+  movq  $0x7, 0x10(%rsp)                            // user.ID
 
 0000000000498320 <main._foo_1>:
-		subq	$0x28, %rsp 			// _foo_1 сдвигает вниз RSP на -28
+        subq    $0x28, %rsp             // _foo_1 сдвигает вниз RSP на -28
 
-  	// ... etc
-  	movq	0x38(%rsp), %rax	// RSP - 28 + 38 -> то есть получаем RSP + 10
-														// то есть ровно в user.ID :)
-														// См. код _foo -> movq	$0x7, 0x10(%rsp) -> user.ID
-  	callq	0x46c5e0 <runtime.convT64>
-		// вычисляется адрес (указатель) на _type для uint64 (user.ID uint64)
-  	leaq	0xaa9b(%rip), %rcx      # 0x4a2de0 <type:*+0x9de0> 
-		// формируется eface или же any или interface{}
-  	movq	%rcx, 0x18(%rsp) 	// в регистр помещается указатель на _type для uint64 
-  	movq	%rax, 0x20(%rsp) 	// в регистр помещается указатель на data 
-													 	// то есть указатель на uint64 (user.ID *uint64)
-		// ...etc
+    // ... etc
+    movq    0x38(%rsp), %rax    // RSP - 28 + 38 -> то есть получаем RSP + 10
+                                                        // то есть ровно в user.ID :)
+                                                        // См. код _foo -> movq $0x7, 0x10(%rsp) -> user.ID
+    callq   0x46c5e0 <runtime.convT64>
+        // вычисляется адрес (указатель) на _type для uint64 (user.ID uint64)
+    leaq    0xaa9b(%rip), %rcx      # 0x4a2de0 <type:*+0x9de0> 
+        // формируется eface или же any или interface{}
+    movq    %rcx, 0x18(%rsp)    // в регистр помещается указатель на _type для uint64 
+    movq    %rax, 0x20(%rsp)    // в регистр помещается указатель на data 
+                                                        // то есть указатель на uint64 (user.ID *uint64)
+        // ...etc
 
 ```
 
@@ -1000,29 +1000,29 @@ func _foo_1(user *User) {
 }
 
 Escape analyze:
-	user does not escape
-	... argument does not escape
-	user.ID escapes to heap
+    user does not escape
+    ... argument does not escape
+    user.ID escapes to heap
 
 Assembler:
 0000000000498280 <main.main>:
- 		// ... etc
-  	callq 0x498360 <main._foo>
-		// уже знакомая на конструкция :)
-  	leaq	 0xa0(%rsp), %rdi
-  	leaq	 0x8(%rsp), %rsi
-  	callq	0x474a42 <runtime.duffcopy+0x302>
+        // ... etc
+    callq 0x498360 <main._foo>
+        // уже знакомая на конструкция :)
+    leaq     0xa0(%rsp), %rdi
+    leaq     0x8(%rsp), %rsi
+    callq   0x474a42 <runtime.duffcopy+0x302>
     // ... etc
-  	leaq	0x98(%rsp), %rax 						// Вычисляется адрес начало переменной user в стеке main
-  	callq	0x498300 <main._foo_1>
-		// ... etc
+    leaq    0x98(%rsp), %rax                        // Вычисляется адрес начало переменной user в стеке main
+    callq   0x498300 <main._foo_1>
+        // ... etc
 
 0000000000498300 <main._foo_1>:
-		// ... etc
-  	movq	(%rax), %rax 								// Это разыменование указателя, то есть чтение по адресу user.ID
-																			// прям со стека main.main :)
-  	callq	0x46c5e0 <runtime.convT64>
-		// ... etc
+        // ... etc
+    movq    (%rax), %rax                                // Это разыменование указателя, то есть чтение по адресу user.ID
+                                                                            // прям со стека main.main :)
+    callq   0x46c5e0 <runtime.convT64>
+        // ... etc
 ```
 
 То аргумент user не будет указывать на объект в куче, а будет указывать на место в стеке функции main где лежит user.ID! Но почему? Потому, что компилятор задался вопросом: Может ли `&user` быть доступен после того как `main` вернётся?. Ответ нет, так переменная user никуда далее не сохраняется, достаточно просто читать/писать в одну область памяти из стека main, поэтому можно оптимизировать и передать указатель на место в стеке main, а не выполнять копирование переменной user для размещения копии в секции для аргументов. Даже если мы изменим код таким образом (смотри ниже), то все равно утечки в кучу не будет:
@@ -1117,7 +1117,7 @@ func _foo() *User {
 }
 
 escape analyze:
-	moved to heap: user
+    moved to heap: user
 ```
 
 ---
@@ -1130,86 +1130,86 @@ escape analyze:
 
 ```go
 type User struct {
-	A int64		    		      // 8 Б
-	_ [65536 - 8 - 8]byte   // 64 kib - 8 байт на int64 - 8 байт padding int64
+    A int64                       // 8 Б
+    _ [65536 - 8 - 8]byte   // 64 kib - 8 байт на int64 - 8 байт padding int64
 }
 
 func main() {
-	task := make(chan User)
-	result := make(chan User)
-	
+    task := make(chan User)
+    result := make(chan User)
+    
   go _foo(task, result)
 
-	user := User{}
-	task <- user
-	res := <- result
-	_foo_2(&res)
-	_ = res.A
+    user := User{}
+    task <- user
+    res := <- result
+    _foo_2(&res)
+    _ = res.A
 }
 
 func _foo(task, result chan User) {
-	for val := range task {
-		val.A = val.A + 1
-		result <- val
-	}
+    for val := range task {
+        val.A = val.A + 1
+        result <- val
+    }
 }
 func _foo_2(localUser *User) {
-	localUser.A = localUser.A + 1
+    localUser.A = localUser.A + 1
 }
 
 escape analyze:
-	task does not escape
-	result does not escape
-	localUser does not escape
+    task does not escape
+    result does not escape
+    localUser does not escape
 ```
 
 Но смотри как можно сломать приложение, да так что компилятор тебе не позволит собрать приложение :)
 
 ```go
 type User struct {
-	A int64		    		// 8 Б
-	_ [65536 - 8]byte // 64 kib - 8 байт на int64
+    A int64                 // 8 Б
+    _ [65536 - 8]byte // 64 kib - 8 байт на int64
 }
 
 Build Error: go build -o -gcflags all=-N -l .
-	channel element type too large (>64kB)
-	channel element type too large (>64kB)
-	channel element type too large (>64kB) (exit status 1)
+    channel element type too large (>64kB)
+    channel element type too large (>64kB)
+    channel element type too large (>64kB) (exit status 1)
 
 // Сломали? Чиним!
 
 type User struct {
-	A int64		    		// 8 Б
-	_ [65536 - 8]byte   // 64 kib - 8 байт на int64
+    A int64                 // 8 Б
+    _ [65536 - 8]byte   // 64 kib - 8 байт на int64
 }
 
 func main() {
-	task := make(chan *User)
-	result := make(chan *User)
-	go _foo(task, result)
+    task := make(chan *User)
+    result := make(chan *User)
+    go _foo(task, result)
 
-	user := User{}
-	task <- &user
-	res := <- result
-	_foo_2(res)
-	_ = res.A
+    user := User{}
+    task <- &user
+    res := <- result
+    _foo_2(res)
+    _ = res.A
 }
 
 func _foo(task, result chan *User) {
-	for val := range task {
-		val.A = val.A + 1
-		result <- val
-	}
+    for val := range task {
+        val.A = val.A + 1
+        result <- val
+    }
 }
 func _foo_2(localUser *User) {
-	localUser.A = localUser.A + 1
+    localUser.A = localUser.A + 1
 }
 
 escape analyze:
   task does not escape
-	result does not escape
-	localUser does not escape
-	moved to heap: user
+    result does not escape
+    localUser does not escape
+    moved to heap: user
 
 // Кстати, забегая вперед: анномные функции / функции горутины это объекты funcval,
 // которые создаются в куче и захватвают себе аргументы 
@@ -1232,15 +1232,15 @@ escape analyze:
 > P.S. дальше по тексту встретишь термин funcval, в GO рантайме структура для функций, который нужно передать/сохранить как значение, всегда создает структуру funcval из которой он понимает что нужно для запуска твоей функции
 >
 > ```go
-> go func(){}() 							-> создан объект funcval для func(){}
+> go func(){}()                             -> создан объект funcval для func(){}
 > workerPool.Submit(func(){}) -> создан объект funcval для func(){}
 > ```
 
 ```go
 // :)
 type ДелательВпечатлений interface {
-	ДелайВаау() error
-	ДелайКруто() error
+    ДелайВаау() error
+    ДелайКруто() error
 }
 
 type myCoolImpl struct {}
@@ -1248,116 +1248,116 @@ func(i *myCoolImpl) ДелайВаау() error {return nil}
 func(i *myCoolImpl) ДелайКруто() error {return nil}
 
 type contacts struct{
-	email string
+    email string
 }
 type user struct {
-	id uint64
-	contacts *contacts
+    id uint64
+    contacts *contacts
 }
 
 type untypedUser struct {
-	id 		 unsafe.Pointer
-	contacts unsafe.Pointer
+    id       unsafe.Pointer
+    contacts unsafe.Pointer
 }
 
 type myIface struct {
-	funcvalsNames []string
-	funcvals []unsafe.Pointer
-	data unsafe.Pointer
+    funcvalsNames []string
+    funcvals []unsafe.Pointer
+    data unsafe.Pointer
 }
 
 func main() {
-	// -----> localImpl does not escape
-	impl1 := myCoolImpl{}
-	_foo_1(&impl1) // -> заметь здесь тоже берем указатель
-                 //	 но как мы уже знаем, компилятор может доказать
-                 //	 что этот указатель никуда не убежит за пределы
-                 //	 main, поэтому достаточно передать указатель
+    // -----> localImpl does not escape
+    impl1 := myCoolImpl{}
+    _foo_1(&impl1) // -> заметь здесь тоже берем указатель
+                 //  но как мы уже знаем, компилятор может доказать
+                 //  что этот указатель никуда не убежит за пределы
+                 //  main, поэтому достаточно передать указатель
                  //  область где лежит в стеке main impl1
 
-	// -----> moved to heap: impl2
-	impl2 := myCoolImpl{}
-	_foo_2(&impl2)	// -> создается и копируется 
+    // -----> moved to heap: impl2
+    impl2 := myCoolImpl{}
+    _foo_2(&impl2)  // -> создается и копируется 
                   //    в регистры iface, но вот impl1 убегает в кучу
-                  //	  iface{&impl2}.
+                  //      iface{&impl2}.
                   //
-                  //	P.S. кст, сбилди сам asm и посмотри, куда будет все-таки
-                  //	размещен iface:
-                  //	1) в знакомый нам уже spill slot на стеке main
-                  //	2) или же раскидается на два регистра 
-	
-	// если iface{*type, *data} то есть два указателя
-	// то логично что и contacts: &contacts должна убежать, логично?
-	// Нооо упс... :(
-	// -----> ./main.go:48:26: &contacts{} does not escape
-	user1 := user{contacts: &contacts{}}
-	_foo_3(user1)
+                  //    P.S. кст, сбилди сам asm и посмотри, куда будет все-таки
+                  //    размещен iface:
+                  //    1) в знакомый нам уже spill slot на стеке main
+                  //    2) или же раскидается на два регистра 
+    
+    // если iface{*type, *data} то есть два указателя
+    // то логично что и contacts: &contacts должна убежать, логично?
+    // Нооо упс... :(
+    // -----> ./main.go:48:26: &contacts{} does not escape
+    user1 := user{contacts: &contacts{}}
+    _foo_3(user1)
 
-	// может надо contacts разместить на стеке?
-	// и снова молчит escape анализ, упс...
-	contacts2 := contacts{}
-	user2 := user{contacts: &contacts2}
-	_foo_3(user2)
+    // может надо contacts разместить на стеке?
+    // и снова молчит escape анализ, упс...
+    contacts2 := contacts{}
+    user2 := user{contacts: &contacts2}
+    _foo_3(user2)
 
-	// iface.data является unsafe.Pointer'ом, может дело все в нем
-	// то уже с untypedUser точно убежит contacts3 (да и id3)!
-	// Нооо упс... :(
-	// -----> localUntypedUser does not escape
-	id3 := 1
-	contacts3 := contacts{}
-	user3 := untypedUser{
-		id: unsafe.Pointer(&id3),
-		contacts: unsafe.Pointer(&contacts3),
-	}
-	_foo_4(user3)
+    // iface.data является unsafe.Pointer'ом, может дело все в нем
+    // то уже с untypedUser точно убежит contacts3 (да и id3)!
+    // Нооо упс... :(
+    // -----> localUntypedUser does not escape
+    id3 := 1
+    contacts3 := contacts{}
+    user3 := untypedUser{
+        id: unsafe.Pointer(&id3),
+        contacts: unsafe.Pointer(&contacts3),
+    }
+    _foo_4(user3)
 
-	// iface хранит объекты funcval'ы для методов
-	// может вот в чем дело?
-	// Бинго!
-	// -----> &myCoolImpl{} escapes to heap
-	// -----> impl3.ДелайВаау escapes to heap
-	// -----> impl3.ДелайКруто escapes to heap
-	impl3 := &myCoolImpl{}
-	methodДелайВаау := impl3.ДелайВаау	 // создали объект funcval
-	methodДелайКруто := impl3.ДелайКруто // создали объект funcval
-	iface := myIface{
-		funcvalsNames: []string{
-			"ДелайВаау", "ДелайКруто",
-		},
-		funcvals: []unsafe.Pointer{
-			unsafe.Pointer(&methodДелайВаау),  // cоздали указатель на указатель - **funcval
-			unsafe.Pointer(&methodДелайКруто), // cоздали указатель на указатель - **funcval
-		},
-		data: unsafe.Pointer(impl3),
-	}
-	_foo_5(iface)
+    // iface хранит объекты funcval'ы для методов
+    // может вот в чем дело?
+    // Бинго!
+    // -----> &myCoolImpl{} escapes to heap
+    // -----> impl3.ДелайВаау escapes to heap
+    // -----> impl3.ДелайКруто escapes to heap
+    impl3 := &myCoolImpl{}
+    methodДелайВаау := impl3.ДелайВаау   // создали объект funcval
+    methodДелайКруто := impl3.ДелайКруто // создали объект funcval
+    iface := myIface{
+        funcvalsNames: []string{
+            "ДелайВаау", "ДелайКруто",
+        },
+        funcvals: []unsafe.Pointer{
+            unsafe.Pointer(&methodДелайВаау),  // cоздали указатель на указатель - **funcval
+            unsafe.Pointer(&methodДелайКруто), // cоздали указатель на указатель - **funcval
+        },
+        data: unsafe.Pointer(impl3),
+    }
+    _foo_5(iface)
 
-	// -----> cnt escapes to heap
-	var cnt int
-	fmt.Println(cnt) 	// -> создается и копируется 
+    // -----> cnt escapes to heap
+    var cnt int
+    fmt.Println(cnt)    // -> создается и копируется 
                     //    в регистры eface, но вот cnt убегает в кучу
-                    //	  eface{&impl2}.
+                    //    eface{&impl2}.
 }
 
 func _foo_1(localImpl *myCoolImpl) {
-	_ = localImpl.ДелайВаау()
+    _ = localImpl.ДелайВаау()
 }
 
 func _foo_2(делатель ДелательВпечатлений) {
-	_ = делатель.ДелайКруто()
+    _ = делатель.ДелайКруто()
 }
 
 func _foo_3(localUser user) {
-	localUser.contacts.email = "email@mail.com"
+    localUser.contacts.email = "email@mail.com"
 }
 
 func _foo_4(localUntypedUser untypedUser) {
-	restoredConacts := (*contacts)(localUntypedUser.contacts)
-	restoredConacts.email = "email@mail.com"
+    restoredConacts := (*contacts)(localUntypedUser.contacts)
+    restoredConacts.email = "email@mail.com"
 }
 
 func _foo_5(localMyIface myIface) {
-	for idx := 0; idx < len(localMyIface.funcvals); idx++ {
+    for idx := 0; idx < len(localMyIface.funcvals); idx++ {
      // создаем переменную указатель на *funcval для func() error :)
      var fn *func() error
 
@@ -1378,7 +1378,7 @@ func _foo_5(localMyIface myIface) {
      // такой же тип как и int, string и untypedUser в конце концов. Поэтому
      // не ведись на название Pointer, которые ты читаешь как указатель. Нет это адрес!
      // То есть он видит буквально: 
-     // 			unsafe.Pointer(0x00) 
+     //             unsafe.Pointer(0x00) 
      // где uintptr это тоже не указатель, а целочисленное значение для адреса в памяти,
      // он видит адрес 0x00, но как я его приведи к конкретному типу, если я не знаю
      // размер этого типа? Представь, ты штукатур и тебе говорят: сколько стоит сделать
@@ -1408,12 +1408,12 @@ func _foo_5(localMyIface myIface) {
 
 ```go
 func main() {
-	var впечатлитель ДелательВпечатлений = &myCoolImpl{}
-	_ = впечатлитель.ДелайКруто()
+    var впечатлитель ДелательВпечатлений = &myCoolImpl{}
+    _ = впечатлитель.ДелайКруто()
 }
 
 escape analyze:
-	&myCoolImpl{} does not escape
+    &myCoolImpl{} does not escape
 ```
 
 ![go_doc_pic_-1.png](./assets/go_doc_pic_-1.png)
@@ -1421,7 +1421,7 @@ escape analyze:
 Не убежал в кучу... Основная причина по всей видимости в том, что компилятор, компилируя (извините за товталогию) функцию:
 ```go
 func _foo_2(делатель ДелательВпечатлений) {
-	_ = делатель.ДелайКруто()
+    _ = делатель.ДелайКруто()
 }
 ```
 
@@ -1434,7 +1434,7 @@ func _foo_2(делатель ДелательВпечатлений) {
 funcval - в GO рантайме структура для функций, который нужно передать/сохранить как значение, всегда создает структуру funcval из которой он понимает что нужно для запуска твоей функции. Дальше мы еще поговорим подробней про funcval когда будем рассматривать как создаются горутины.
 
 ```go
-go func(){}() 							-> создан объект funcval для func(){}
+go func(){}()                           -> создан объект funcval для func(){}
 workerPool.Submit(func(){}) -> создан объект funcval для func(){}
 ```
 
@@ -1442,45 +1442,45 @@ workerPool.Submit(func(){}) -> создан объект funcval для func(){}
 ```go
 type Struct struct {
   data1 int
-	data2 int
-	data3 int
-	data4 int
+    data2 int
+    data3 int
+    data4 int
 }
 
 func main() {
-	var a int = 1
-	var b Struct = Struct{
-		data1: 3,
-	}
+    var a int = 1
+    var b Struct = Struct{
+        data1: 3,
+    }
   
-	var fn = func(val *int) {
-		*val = 2
-		b = Struct{
-			data1: 4,
-			data2: 5,
-			data3: 6,
-			data4: 7,
-		}
-	}
+    var fn = func(val *int) {
+        *val = 2
+        b = Struct{
+            data1: 4,
+            data2: 5,
+            data3: 6,
+            data4: 7,
+        }
+    }
 
-	fn(&a)
-	
-	if b.data1 == 4 {
-		b.data1 = rand.Intn(100)
-	}
-	if b.data2 == 5 {
-		b.data2 = rand.Intn(100)
-	}
-	if b.data3 == 6 {
-		b.data3 = rand.Intn(100)
-	}
-	if b.data4 == 7 {
-		b.data4 = rand.Intn(100)
-	}
+    fn(&a)
+    
+    if b.data1 == 4 {
+        b.data1 = rand.Intn(100)
+    }
+    if b.data2 == 5 {
+        b.data2 = rand.Intn(100)
+    }
+    if b.data3 == 6 {
+        b.data3 = rand.Intn(100)
+    }
+    if b.data4 == 7 {
+        b.data4 = rand.Intn(100)
+    }
 }
 
 escape analyze:
-	val does not escape
+    val does not escape
   func literal does not escape
 
 // Ничего не убежало в кучу!
@@ -1491,59 +1491,59 @@ escape analyze:
 ################################# P.S. 0x10 в 16-ой системе, а 10-ой системе = 16, так что не путайся :)
 0000000000479960 <main.main>:
   # стандартно проверяем границу стека G
-  cmpq	0x10(%r14), %rsp
+  cmpq  0x10(%r14), %rsp
   # стандартно если стека G не хватает прыгаем для увелечения размера стека G
-  jbe	0x479a17 <main.main+0xb7>
-  pushq	%rbp                  # пускай RSP = 1000, поэтому 1000-8 = 992 получаем RBP для main.main
+  jbe   0x479a17 <main.main+0xb7>
+  pushq %rbp                  # пускай RSP = 1000, поэтому 1000-8 = 992 получаем RBP для main.main
                               # и сохраняем RBP runtime.main по адресу 992. RSP = 992
-  movq	%rsp, %rbp            # копируем в RBP значение RSP, и получаем RBP для main.main  - RBP = 992
-  subq	$0x40, %rsp           # вычисляем нижнюю границу стека main RSP - 64 = 992 - 64 = 928
-  movq	$0x1, 0x28(%rsp)      # по адресу 928 + 40 = 968 в стек main.main сохраняем a = 1
-  movq	$0x3, 0x8(%rsp)       # по адресу 928 + 8 = 936  в стек main.main сохраняем data1: 3
-  movups	%xmm15, 0x10(%rsp)  # теперь смотри xmm15 это векторный регистр на 16 байт
+  movq  %rsp, %rbp            # копируем в RBP значение RSP, и получаем RBP для main.main  - RBP = 992
+  subq  $0x40, %rsp           # вычисляем нижнюю границу стека main RSP - 64 = 992 - 64 = 928
+  movq  $0x1, 0x28(%rsp)      # по адресу 928 + 40 = 968 в стек main.main сохраняем a = 1
+  movq  $0x3, 0x8(%rsp)       # по адресу 928 + 8 = 936  в стек main.main сохраняем data1: 3
+  movups    %xmm15, 0x10(%rsp)  # теперь смотри xmm15 это векторный регистр на 16 байт
                               # go решил нашу Struct "распихать по регистрам", 
                               # а 16 байт это как раз два int :)
                               # на этом этапе в xmm15 лежит какой-то мусор, но и пофиг, на стек main.main
                               # начиная с адреса 928 + 16 = 944 будут лежать 
                               # "мусорные" значения для data2, data3
                               # то есть по адресам 944 по 960 (944+16)
-  movq	$0x0, 0x20(%rsp)      # по адресу 928 + 32 = 960 в стек main.main запишем data4 = 0      
-  leaq	0xa6(%rip), %rcx      # вычислим адрес для нашей var fn в блоке .text 
-  														# (вспомнинаем про то что в linux)
+  movq  $0x0, 0x20(%rsp)      # по адресу 928 + 32 = 960 в стек main.main запишем data4 = 0      
+  leaq  0xa6(%rip), %rcx      # вычислим адрес для нашей var fn в блоке .text 
+                                                        # (вспомнинаем про то что в linux)
                               # это секция в виртуальном пространстве адресов 
                               # процесса отвечает за хранения кода
                               # из товего бинарника пускай это будет адрес 100
-  movq	%rcx, 0x30(%rsp)      # по адресу 928 + 48 = 976 в стек main.main сохраняем адрес 100
-  leaq	0x8(%rsp), %rbx       # вычисли адрес 928 + 8 = 936 и сихраним его в RBX 
+  movq  %rcx, 0x30(%rsp)      # по адресу 928 + 48 = 976 в стек main.main сохраняем адрес 100
+  leaq  0x8(%rsp), %rbx       # вычисли адрес 928 + 8 = 936 и сихраним его в RBX 
                               # (подсказка это уже адрес data1: 3 :) см. выше)
-  movq	%rbx, 0x38(%rsp)      # по адресу 928 + 56 = 984 в стек main.main 
-  														# сохраняем адрес 936 (адрес data1: 3)
-  leaq	0x28(%rsp), %rax      # вычисли адрес 928 + 40 = 968 и сихраним его в RAX
+  movq  %rbx, 0x38(%rsp)      # по адресу 928 + 56 = 984 в стек main.main 
+                                                        # сохраняем адрес 936 (адрес data1: 3)
+  leaq  0x28(%rsp), %rax      # вычисли адрес 928 + 40 = 968 и сихраним его в RAX
                               # (подсказка это уже адрес var a :) см. выше)
-  leaq	0x30(%rsp), %rdx      # вычисли адрес 928 + 48 = 976 и сихраним его в RDX
+  leaq  0x30(%rsp), %rdx      # вычисли адрес 928 + 48 = 976 и сихраним его в RDX
                               # (подсказка по адресу 976 лежит адрес var fn = 100 :) см. выше)
-  callq	*%rcx                 # выполни вызов var fn из адреса в регистре RСX 
-  														# (в RCX сейчас записано 100)
+  callq *%rcx                 # выполни вызов var fn из адреса в регистре RСX 
+                                                        # (в RCX сейчас записано 100)
   # дальше скучно :)
   # ... etc
-  addq	$0x40, %rsp
-  popq	%rbp
+  addq  $0x40, %rsp
+  popq  %rbp
   retq
-  callq	0x46f120 <runtime.morestack_noctxt.abi0>
-  nopl	(%rax)
-  jmp	0x479960 <main.main>
+  callq 0x46f120 <runtime.morestack_noctxt.abi0>
+  nopl  (%rax)
+  jmp   0x479960 <main.main>
  
 0000000000479a40 <main.main.func1>:
   # P.S. см выше:
   # 1) в RAX лежит адрес 968 - это адрес var a в стеке main.main 
   # 2) в RDX лежит адрес 976 - это адрес на самого себя main.main.func1
-  movq	0x8(%rdx), %rcx     # вычисли адрес 976 + 8 = 984, а потому адресу лежит адрес 936,
+  movq  0x8(%rdx), %rcx     # вычисли адрес 976 + 8 = 984, а потому адресу лежит адрес 936,
                             # то есть адрес (Struct) b.data1 (см. выше)                      
-  movq	$0x2, (%rax)        # запиши по адресу 968 2 -> *val = 2
-  movq	$0x4, (%rcx)        # по адресу 984 запиши 4 в адрес 936          -> b.data1 = 4
-  movq	$0x5, 0x8(%rcx)     # по адресу 984 запиши 5 в адрес 936+8  = 944 -> b.data2 = 5
-  movq	$0x6, 0x10(%rcx)    # по адресу 984 запиши 6 в адрес 936+16 = 952 -> b.data3 = 6
-  movq	$0x7, 0x18(%rcx)    # по адресу 984 запиши 7 в адрес 936+24 = 960 -> b.data4 = 7
+  movq  $0x2, (%rax)        # запиши по адресу 968 2 -> *val = 2
+  movq  $0x4, (%rcx)        # по адресу 984 запиши 4 в адрес 936          -> b.data1 = 4
+  movq  $0x5, 0x8(%rcx)     # по адресу 984 запиши 5 в адрес 936+8  = 944 -> b.data2 = 5
+  movq  $0x6, 0x10(%rcx)    # по адресу 984 запиши 6 в адрес 936+16 = 952 -> b.data3 = 6
+  movq  $0x7, 0x18(%rcx)    # по адресу 984 запиши 7 в адрес 936+24 = 960 -> b.data4 = 7
 
 ```
 
@@ -1567,10 +1567,10 @@ func _foo_1(user *User) {
 }
 
 Escape analyze:
-	user.ID escapes to heap in _foo_1:
-	user does not escape
-	... argument does not escape
-	user.ID escapes to heap
+    user.ID escapes to heap in _foo_1:
+    user does not escape
+    ... argument does not escape
+    user.ID escapes to heap
 ```
 
 
@@ -1579,7 +1579,7 @@ Escape analyze:
 
 ```go
 type User struct {
-	id int64		    		      
+    id int64                          
 }
 
 func (u *User) GetID() int64 {
@@ -1587,27 +1587,27 @@ func (u *User) GetID() int64 {
 }
 
 func main() {
-	user := User{}
-	task := make(chan func() int64)
-	res := make(chan int64)
+    user := User{}
+    task := make(chan func() int64)
+    res := make(chan int64)
 
-	go func(task chan func() int64, res chan int64) {
-		for fn := range task {
-			res <- fn()
-		}
-	}(task, res)
+    go func(task chan func() int64, res chan int64) {
+        for fn := range task {
+            res <- fn()
+        }
+    }(task, res)
 
-	task <- user.GetID
-	<- res
+    task <- user.GetID
+    <- res
 }
 
 escape analyze:
-	u does not escape
-	task does not escape
-	res does not escape
-	moved to heap: user
-	func literal escapes to heap
-	user.GetID escapes to heap
+    u does not escape
+    task does not escape
+    res does not escape
+    moved to heap: user
+    func literal escapes to heap
+    user.GetID escapes to heap
 ```
 
 
@@ -1899,30 +1899,30 @@ type m struct {
 ```go
 
 func acquirem() *m {
-	gp := getg()	// берем из TLS текщую исполняемую G
-	gp.m.locks++	// у текущей исполняемой G, берем ссылку на M и увеличиваем счетчик 
-	return gp.m
+    gp := getg()    // берем из TLS текщую исполняемую G
+    gp.m.locks++    // у текущей исполняемой G, берем ссылку на M и увеличиваем счетчик 
+    return gp.m
 }
 
 
 func releasem(mp *m) {
-	gp := getg() // берем из TLS текщую исполняемую G
-	mp.locks--	 // у текущей исполняемой G, берем ссылку на M и уменьшаем счетчик 
-	
+    gp := getg() // берем из TLS текщую исполняемую G
+    mp.locks--   // у текущей исполняемой G, берем ссылку на M и уменьшаем счетчик 
+    
   // Забежим немного вперед:
   // 1) G.preempt - флаг который говорит о том, что наступил момент когда G пора бы "освободить место"
-  //		и дать поработать другим / либо о том что наступила остановка мира от GC
+  //        и дать поработать другим / либо о том что наступила остановка мира от GC
   // 2) G.stackguard0 - верхняя граница стека G, а значение stackPreempt - это "хак", 
-  //		который вынудит G "освободить место" и дать поработать другим / 
-  //		либо наступила остановка мира от GC
+  //        который вынудит G "освободить место" и дать поработать другим / 
+  //        либо наступила остановка мира от GC
   //
   // ВАЖНО:
   // Об этом мы поговорим позже, когда посмотрим в планировщик. Сейчас нам важно знать то, что
   // этот код вынудить текущий M уйти в режим планировщика или уснуть,
   // потому что произошла остановка мира из-за GC! 
   if mp.locks == 0 && gp.preempt {
-		gp.stackguard0 = stackPreempt
-	}
+        gp.stackguard0 = stackPreempt
+    }
 }
 ```
 
@@ -1936,62 +1936,62 @@ func releasem(mp *m) {
 // <----- блок кода который сейчас припаркован ----------------------------------------------------------
 // G1=foo_1, G1 сейчас без M и без P
 func foo_1(ch chan int) {
-		<- ch
+        <- ch
 }
 // -----> конец блока кода который сейчас припаркован ---------------------------------------------------
 
 // <----- блок кода который сейчас выполняется на M1 ----------------------------------------------------
 // G2=foo_2, G2 сейчас на M1, G2 сейчас на P1
 func foo_2(ch chan int) {
-  	ch <- 1
+    ch <- 1
 }
 
 // https://github.com/golang/go/blob/master/src/runtime/chan.go#L176
 func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
-  	// ... etc
-  	if sg := c.recvq.dequeue(); sg != nil {
+    // ... etc
+    if sg := c.recvq.dequeue(); sg != nil {
       send(c, sg, ep, func() { unlock(&c.lock) }, 3)
       return true
     }
-  	// ... etc
+    // ... etc
 }
 
 // https://github.com/golang/go/blob/master/src/runtime/chan.go#L318
 func send(c *hchan, sg *sudog, ep unsafe.Pointer, unlockf func(), skip int) {
-  	// ...etc
-  	gp := sg.g	// <--- это и есть G1
-  	goready(gp, skip+1)
+    // ...etc
+    gp := sg.g  // <--- это и есть G1
+    goready(gp, skip+1)
 }
 
 // https://github.com/golang/go/blob/master/src/runtime/proc.go#L485C1
 func goready(gp *g, traceskip int) {
-  	// прыгаем на стек потока M1 (m.g0)
-  	systemstack(func() {
+    // прыгаем на стек потока M1 (m.g0)
+    systemstack(func() {
       ready(gp, traceskip, true)
     })
 }
 
 // https://github.com/golang/go/blob/master/src/runtime/proc.go#L1124
 func ready(gp *g, traceskip int, next bool) {
-	status := readgstatus(gp)
+    status := readgstatus(gp)
   // блокируем M1 от вытеснения, на которой сейчас выполняется G2
-	mp := acquirem()
+    mp := acquirem()
   // нам важно чтобы G была в статусе _Gwaiting
   // а так как речь про G1, то она как раз _Gwaiting
-	if status&^_Gscan != _Gwaiting {
-		// кидаем фатальную ошибку
-	}
+    if status&^_Gscan != _Gwaiting {
+        // кидаем фатальную ошибку
+    }
   // ...etc
   // пытаемся засунуть G1 в очередь P1 (на P1 "сейчас выпоняется" G2 и P1 связан с M1)
   // P.S.: подробно разберем когда будем выяснять: "а как запускается новая G?"
-  //			 здесь нам важно только знать что G1 станет следующей в очереди P1, после G2
-	runqput(mp.p.ptr(), gp, next)
+  //             здесь нам важно только знать что G1 станет следующей в очереди P1, после G2
+    runqput(mp.p.ptr(), gp, next)
   // пытаемся разбудить свободные P и M чтобы выполнить G ожидающие своей очереди 
   // P.S.: подробно разберем когда будем выяснять: "а как запускается новая G?"
-  //				здесь нам важно только знать что принудительно пытаемся разбудить свободные P  
-	wakep()
+  //                здесь нам важно только знать что принудительно пытаемся разбудить свободные P  
+    wakep()
   // сниаем блокировку с M1
-	releasem(mp)
+    releasem(mp)
 }
 // -----> конец блок кода который сейчас выполняется на M1 ----------------------------------------------
 
@@ -2007,37 +2007,37 @@ func stopTheWorldWithSema(reason stwReason) worldStop {
 
 // https://github.com/golang/go/blob/master/src/runtime/proc.go#L6873C1
 func preemptall() bool {
-	res := false
-	for _, pp := range allp {
+    res := false
+    for _, pp := range allp {
     // Если _Prunning то неважно какой статус, так мы
     // уверены в том, что 
-		if pp.status != _Prunning {
-			continue
-		}
+        if pp.status != _Prunning {
+            continue
+        }
     // Пытаемся "усыпить" M1 через сигнал SIGURG
-		if preemptone(pp) {
-			res = true
-		}
-	}
-	return res
+        if preemptone(pp) {
+            res = true
+        }
+    }
+    return res
 }
 
 func preemptone(pp *p) bool {
   // ...etc
   mp := pp.m.ptr() // берем у P1 "его" M1
-  gp := mp.curg		 // берем у M1 "его" G2 
+  gp := mp.curg      // берем у M1 "его" G2 
   // ...etc
-  gp.preempt = true 						// ставим у G2 флаг вытеснения
-  gp.stackguard0 = stackPreempt	// "портим стек G2" (об этом поговорим позже)
+  gp.preempt = true                         // ставим у G2 флаг вытеснения
+  gp.stackguard0 = stackPreempt // "портим стек G2" (об этом поговорим позже)
   // ...etc
   pp.preempt = true // ставим у M1 флаг вытеснения
-	preemptM(mp)
+    preemptM(mp)
   // ...etc
 }
 
 // https://github.com/golang/go/blob/master/src/runtime/signal_unix.go#L369
 func preemptM(mp *m) {
-	// ...etc
+    // ...etc
   signalM(mp, sigPreempt) // отправляем SIGURG  
   // ...etc
 }
@@ -2056,28 +2056,28 @@ func preemptM(mp *m) {
 // <----- блок кода который сейчас выполняется на M1 ----------------------------------------------------
 // G2=foo_2, G2 сейчас на M1, G2 сейчас на P1
 func foo_2(ch chan int) {
-  	ch <- 1
+    ch <- 1
 }
 
 // ... -> doSigPreempt 
-//				-> wantAsyncPreempt - проверит у G и P флаги `preempt == true` 
-//					-> isAsyncSafePoint - выполнит ряд проверок, чтобы убедиться, является ли вытеснение
-//																M сейчас безопасным, в том числе вызывая canPreemptM
-//							-> canPreemptM - проверим M.locks > 0 ?
+//              -> wantAsyncPreempt - проверит у G и P флаги `preempt == true` 
+//                  -> isAsyncSafePoint - выполнит ряд проверок, чтобы убедиться, является ли вытеснение
+//                                                              M сейчас безопасным, в том числе вызывая canPreemptM
+//                          -> canPreemptM - проверим M.locks > 0 ?
 
 // https://github.com/golang/go/blob/master/src/runtime/signal_unix.go#L342
 func doSigPreempt(gp *g, ctxt *sigctxt) {
-	if wantAsyncPreempt(gp) {
-		if ok, newpc := isAsyncSafePoint(gp, ctxt.sigpc(), ctxt.sigsp(), ctxt.siglr()); ok {
+    if wantAsyncPreempt(gp) {
+        if ok, newpc := isAsyncSafePoint(gp, ctxt.sigpc(), ctxt.sigsp(), ctxt.siglr()); ok {
       // сюда не попадем, так как у M1 сейчас есть блокировки 
-		}
-	}
-	// ...etc
+        }
+    }
+    // ...etc
 }
 
 // https://github.com/golang/go/blob/master/src/runtime/preempt.go#L288
 func canPreemptM(mp *m) bool {
-	return mp.locks == 0 && mp.mallocing == 0 && mp.preemptoff == "" && mp.p.ptr().status == _Prunning && 					mp.curg != nil && readgstatus(mp.curg)&^_Gscan != _Gsyscall
+    return mp.locks == 0 && mp.mallocing == 0 && mp.preemptoff == "" && mp.p.ptr().status == _Prunning &&                   mp.curg != nil && readgstatus(mp.curg)&^_Gscan != _Gsyscall
 }
 // G2 продолжает выполнение ровно с той инструкции, на которой была прервана. 
 // Никакого вытеснения M1 не произошло, то есть G2 продолжит отправку сообщения в канал.
@@ -2100,19 +2100,19 @@ func stopTheWorldWithSema(reason stwReason) worldStop {
   preemptall()
   // ...etc
   if wait {
-		for {
+        for {
       // M2 сам себя замораживает на 100 мкс (syscall futex, о котором мы скорее всего еще поговорим)
       // notetsleep - вернет false если Linux разбудил M2
       // по истечению 100 мкс, а не потому что кто-то другой его разбудил
-			if notetsleep(&sched.stopnote, 100*1000) {
-				noteclear(&sched.stopnote)
-				break
-			}
+            if notetsleep(&sched.stopnote, 100*1000) {
+                noteclear(&sched.stopnote)
+                break
+            }
       
       // уже знакомый нам вызов :)))
-			preemptall()
-		}
-	}
+            preemptall()
+        }
+    }
   // ...etc
 }
 // -----> конец блок кода который сейчас выполняется на M2 ----------------------------------------------
@@ -2156,14 +2156,14 @@ clone(cloneFlags, stk, unsafe.Pointer(mp), unsafe.Pointer(mp.g0), unsafe.Pointer
 // Флаги определяют, что именно мы разделяем с родителем.
 1) flags - всегда прокакидывается глобальная переменная cloneFlags
 ```
-cloneFlags = 	_CLONE_VM | 			// Общая память
-							_CLONE_FS | 			// Общая инфо о файловой системе
-							_CLONE_FILES | 		// Общие дескрипторы файлов
-							_CLONE_SIGHAND | 	// Общие обработчики сигналов
-							_CLONE_SYSVSEM | 	// Общий семафор System V 
-																// (помнишь про то что Linux защищает от одновременного 
-																// изменения файлов? Так вот это оно)
-							_CLONE_THREAD 		// Поместить в ту же группу потоков
+cloneFlags =    _CLONE_VM |             // Общая память
+                            _CLONE_FS |             // Общая инфо о файловой системе
+                            _CLONE_FILES |      // Общие дескрипторы файлов
+                            _CLONE_SIGHAND |    // Общие обработчики сигналов
+                            _CLONE_SYSVSEM |    // Общий семафор System V 
+                                                                // (помнишь про то что Linux защищает от одновременного 
+                                                                // изменения файлов? Так вот это оно)
+                            _CLONE_THREAD       // Поместить в ту же группу потоков
 ```
 
 2) stk - вершина стека `mp.g0.stack.hi`. Если свободных структур M нет (у которых реальный поток уже убит)  - то создаем новый стек через `syscall mmap`. 
@@ -2185,13 +2185,13 @@ MOVQ    fn+32(FP), R12  # записываем адрес функции mstart 
 # и сделал его тем самым TLS у ребенка 
 LEAQ    m_tls(R13), R8  # Берем адрес поля tls внутри структуры M
 ORQ     $0x00080000, DI # Добавляем флаг CLONE_SETTLS в регистр DI
-												# (то есть в арг flags добавим CLONE_SETTLS)
+                                                # (то есть в арг flags добавим CLONE_SETTLS)
 
-MOVL	$SYS_clone, AX
+MOVL    $SYS_clone, AX
 SYSCALL
 
 # если SYSCALL в AX положил значение > 0 - то это родитеть
-CMPQ	AX, $0
+CMPQ    AX, $0
 RET # если родитеть, то выйдем из runtime.clone
 
 # если SYSCALL в AX положил значение == 0 - то это ребенок
@@ -2199,7 +2199,7 @@ get_tls(CX)          # В рег.CX кладем из рег.R8 адрес TLS
 MOVQ    R13, g_m(R9) # gp.m = mp :) (gp - не забыл что это g0?)
 MOVQ    R9, g(CX)    # Кладем адрес G из рег.R9 в TLS - то есть gp (или g0)
 MOVQ    R9, R14      # Кладем адрес G в R14 (всегда хранит текущую G именно в R14)
-CALL    R12					 # Вызываем mstart (не забыл что в рег.R12 положили адрес mstart?)
+CALL    R12                  # Вызываем mstart (не забыл что в рег.R12 положили адрес mstart?)
 ```
 
 
@@ -2209,16 +2209,16 @@ CALL    R12					 # Вызываем mstart (не забыл что в рег.R12
 func newm(fn func(), pp *p, id int64) 
 
 runtime.newm
-	|-> runtime.acquirem
-	|	// 
-	|-> runtime.allocm
-	|			|->
-	|-> set(pp)
-	|-> runtime.newm1
-	|			|-> runtime.newosproc
-	|			|			| // знакомая нам уже clone (см. выше)
-	|			|			|-> runtime.clone
-	
+    |-> runtime.acquirem
+    |   // 
+    |-> runtime.allocm
+    |           |->
+    |-> set(pp)
+    |-> runtime.newm1
+    |           |-> runtime.newosproc
+    |           |           | // знакомая нам уже clone (см. выше)
+    |           |           |-> runtime.clone
+    
 ```
 
 ------
@@ -3058,35 +3058,35 @@ const sliceSize = 100_000
 // указатель здесь нужен потому что
 // в следующих тестах мы задействует sync.Pool :)
 func fillSlice(s *[]float64) {
-	var val float64
-	for i := 0; i < sliceSize; i++ {
-		*s = append(*s, val)
-		val++
-	}
+    var val float64
+    for i := 0; i < sliceSize; i++ {
+        *s = append(*s, val)
+        val++
+    }
 }
 
 // 100_000 * 100_000 гарантировано
 // дашь "прикурить ядру CPU"
 func heavyTask(s []float64) float64 {
-	var result float64
-	for i := 0; i < len(s); i++ {
-		for j := 0; j < len(s); j++ {
-			result += s[i] * s[j]
-		}
-	}
-	return result
+    var result float64
+    for i := 0; i < len(s); i++ {
+        for j := 0; j < len(s); j++ {
+            result += s[i] * s[j]
+        }
+    }
+    return result
 }
 
 func BenchmarkClearHeavyTask(b *testing.B) {
-	slice := make([]float64, 0, sliceSize)
-	fillSlice(&slice)
+    slice := make([]float64, 0, sliceSize)
+    fillSlice(&slice)
 
   b.ReportAllocs() // ставим счетчик аллокаций
-	b.ResetTimer()	// сбрасываем все счетчики, чтобы только "замерить логику"
-	
-	for i := 0; i < b.N; i++ {
-		heavyTask(slice)
-	}
+    b.ResetTimer()  // сбрасываем все счетчики, чтобы только "замерить логику"
+    
+    for i := 0; i < b.N; i++ {
+        heavyTask(slice)
+    }
 }
 
 // Давай-ка сначала глянем на то что там сбилдил компилятор:
@@ -3096,31 +3096,31 @@ func BenchmarkClearHeavyTask(b *testing.B) {
 // их просто не существует - inlining :)
 
 // ...etc это наша fillSlice в теле BenchmarkClearHeavyTask
-  52a7e5: callq	0x47a0c0 <runtime.makeslice> // выделяем слайс
-  52a7ea: movq	%rax, 0x50(%rsp) // запоминаем длину в стеке
-  52a7ef: movq	$0x0, 0x58(%rsp) // это наш val == 0 в стеке
-  52a7f8: movq	$0x186a0, 0x60(%rsp)    # imm = 0x186A0 // сохраним в стек длину
-  52a801: xorl	%eax, %eax
-  52a803: xorps	%xmm0, %xmm0
-  52a806: jmp	0x52a822 <examples/worker_pool.BenchmarkClearHeavyTask+0x62>
-  52a808: movq	%rbx, 0x58(%rsp) // берем адрес текущего i-ого
-  52a80d: movsd	%xmm0, -0x8(%rdx,%rbx,8) // сдвигаем на 8 байт от адреса i, 
-																				 // чтобы получить адрес следующего i
-																				 // для s[i] = val 
-  52a813: movsd	0x90ced(%rip), %xmm1  // контанта float64 == 1 по адресу (вероятней всего :)
-  52a81b: addsd	%xmm1, %xmm0 // val = val + 1, шаг ранее xmm0 мы получили аддрес i-ого элемента
-  52a81f: incq	%rax // i++
-  52a822: cmpq	$0x186a0, %rax          # imm = 0x186A0 // Если i >= 100 000, выходим из цикла
-																												// ранее 0x186a0 в стек по этому адресу
-																												// записали длину
-  52a828: jge	0x52a87f // прыжок из цикла дальше
-	52a82a: movq	0x60(%rsp), %rcx // из стека вытягиваем cap
-  52a82f: movq	0x58(%rsp), %rbx // сохраняем на стек адрес текущего i
-  52a834: incq	%rbx
-  52a837: movq	0x50(%rsp), %rdx
-  52a83c: nopl	(%rax)
-  52a840: cmpq	%rbx, %rcx // контроль от выстрела себе в ногу i < cap? иначе иди увеличивай слайс
-  52a843: jae	0x52a808 // прыгаем к 52a808 то есть на следующую итерацию цикла
+  52a7e5: callq 0x47a0c0 <runtime.makeslice> // выделяем слайс
+  52a7ea: movq  %rax, 0x50(%rsp) // запоминаем длину в стеке
+  52a7ef: movq  $0x0, 0x58(%rsp) // это наш val == 0 в стеке
+  52a7f8: movq  $0x186a0, 0x60(%rsp)    # imm = 0x186A0 // сохраним в стек длину
+  52a801: xorl  %eax, %eax
+  52a803: xorps %xmm0, %xmm0
+  52a806: jmp   0x52a822 <examples/worker_pool.BenchmarkClearHeavyTask+0x62>
+  52a808: movq  %rbx, 0x58(%rsp) // берем адрес текущего i-ого
+  52a80d: movsd %xmm0, -0x8(%rdx,%rbx,8) // сдвигаем на 8 байт от адреса i, 
+                                                                                 // чтобы получить адрес следующего i
+                                                                                 // для s[i] = val 
+  52a813: movsd 0x90ced(%rip), %xmm1  // контанта float64 == 1 по адресу (вероятней всего :)
+  52a81b: addsd %xmm1, %xmm0 // val = val + 1, шаг ранее xmm0 мы получили аддрес i-ого элемента
+  52a81f: incq  %rax // i++
+  52a822: cmpq  $0x186a0, %rax          # imm = 0x186A0 // Если i >= 100 000, выходим из цикла
+                                                                                                                // ранее 0x186a0 в стек по этому адресу
+                                                                                                                // записали длину
+  52a828: jge   0x52a87f // прыжок из цикла дальше
+    52a82a: movq    0x60(%rsp), %rcx // из стека вытягиваем cap
+  52a82f: movq  0x58(%rsp), %rbx // сохраняем на стек адрес текущего i
+  52a834: incq  %rbx
+  52a837: movq  0x50(%rsp), %rdx
+  52a83c: nopl  (%rax)
+  52a840: cmpq  %rbx, %rcx // контроль от выстрела себе в ногу i < cap? иначе иди увеличивай слайс
+  52a843: jae   0x52a808 // прыгаем к 52a808 то есть на следующую итерацию цикла
 // ...etc
 // ...etc это наша heavyTask которая просто находится внутри цикла b.N  
 // --- НАЧАЛО ЦИКЛА b.N (Benchmark) ---
@@ -3178,89 +3178,89 @@ BenchmarkClearHeavyTask-8
 const batch = 100
 
 func helperManyG(slice []float64, signals chan struct{}) {
-	defer func() {
-		signals <- struct{}{}
-	}()
-	// так не надо в prod делать:)
-	// иначе твои боевые кони (go func) все ломятся
-	// в один backing array, но здесь мы это можем опустить
-	// так операции только read :)
-	heavyTask(slice)
+    defer func() {
+        signals <- struct{}{}
+    }()
+    // так не надо в prod делать:)
+    // иначе твои боевые кони (go func) все ломятся
+    // в один backing array, но здесь мы это можем опустить
+    // так операции только read :)
+    heavyTask(slice)
 }
 
 func helperWorkerPool(sem chan []float64, signals chan struct{}) {
-	for slice := range sem {
-		// так не надо в prod делать:)
-		// иначе worker'ы ломятся в один backing array,
-		// но здесь мы это можем опустить так операции только read :)
-		heavyTask(slice)
-		signals <- struct{}{}
-	}
+    for slice := range sem {
+        // так не надо в prod делать:)
+        // иначе worker'ы ломятся в один backing array,
+        // но здесь мы это можем опустить так операции только read :)
+        heavyTask(slice)
+        signals <- struct{}{}
+    }
 }
 
 func BenchmarkManyG(b *testing.B) {
-	slice := make([]float64, 0, sliceSize)
-	fillSlice(&slice)
-	signals := make(chan struct{}, batch)
+    slice := make([]float64, 0, sliceSize)
+    fillSlice(&slice)
+    signals := make(chan struct{}, batch)
 
-	b.ResetTimer() // сбрасываем, счетчики
-	b.ReportAllocs()
+    b.ResetTimer() // сбрасываем, счетчики
+    b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+    for i := 0; i < b.N; i++ {
     // запускаем на каждой итерации Benchmark
     // батч задачек
-		for j := 0; j < batch; j++ {
-			go helperManyG(slice, signals)
-		}
+        for j := 0; j < batch; j++ {
+            go helperManyG(slice, signals)
+        }
 
     // дожидаемся завершения обработки всего батча 
-		for j := 0; j < batch; j++ {
-			<-signals
-		}
-	}
+        for j := 0; j < batch; j++ {
+            <-signals
+        }
+    }
 
   // сбрасываем, чтобы не учитывать закрытие канала
-	b.StopTimer()
-	close(signals)
+    b.StopTimer()
+    close(signals)
 }
 
 func BenchmarkWorkerPool(b *testing.B) {
-	slice := make([]float64, 0, sliceSize)
-	fillSlice(&slice)
+    slice := make([]float64, 0, sliceSize)
+    fillSlice(&slice)
 
-	maxP := runtime.GOMAXPROCS(0) // 0 - вернет кол-во, а не изменит его
+    maxP := runtime.GOMAXPROCS(0) // 0 - вернет кол-во, а не изменит его
   signals := make(chan struct{}, batch) // тот же смысл что и в тесте выше :)
-	// ограничиваем очередь кол-вом P
+    // ограничиваем очередь кол-вом P
   // никакого backpresure :)
   sem := make(chan []float64, maxP)
 
   // запускаем Worker'ов равное кол-ву P 
-	for i := 0; i < maxP; i++ {
-		go helperWorkerPool(sem, signals)
-	}
+    for i := 0; i < maxP; i++ {
+        go helperWorkerPool(sem, signals)
+    }
 
-	b.ResetTimer()
-	b.ReportAllocs()
+    b.ResetTimer()
+    b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+    for i := 0; i < b.N; i++ {
     // кидаем в канал задачи
-		for j := 0; j < batch; j++ {
-			sem <- slice // P.S. не забывай, что так как у нас нет backpresure
-      						 // и нет доп. буффера, то при переполнении канала
-      						 // горутина которая пытается записать в канал здесь заблокируется :)
-      						 // len(sem) == 8, а batch == 100
- 		}
+        for j := 0; j < batch; j++ {
+            sem <- slice // P.S. не забывай, что так как у нас нет backpresure
+                             // и нет доп. буффера, то при переполнении канала
+                             // горутина которая пытается записать в канал здесь заблокируется :)
+                             // len(sem) == 8, а batch == 100
+        }
 
     // дожидаемся завершения обработки всего батча
-		for j := 0; j < batch; j++ {
-			<-signals
-		}
-	}
+        for j := 0; j < batch; j++ {
+            <-signals
+        }
+    }
 
   // сбрасываем, чтобы не учитывать закрытие канала
-	b.StopTimer()
-	close(sem)
-	close(signals)
+    b.StopTimer()
+    close(sem)
+    close(signals)
 }
 ```
 
@@ -3351,57 +3351,57 @@ go tool trace BenchmarkWorkerPool.out
 
 ```go
 func BenchmarkManyG(b *testing.B) {
-	slice := make([]float64, 0, sliceSize)
-	fillSlice(&slice)
+    slice := make([]float64, 0, sliceSize)
+    fillSlice(&slice)
 
-	b.ResetTimer()
-	b.ReportAllocs()
+    b.ResetTimer()
+    b.ReportAllocs()
 
-	wg := sync.WaitGroup{}
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < batch; j++ {
-			wg.Add(1)
-			go func(wg *sync.WaitGroup, slice []float64) {
-				defer wg.Done()
-				heavyTask(slice)
-			}(&wg, slice)
-		}
-	}
+    wg := sync.WaitGroup{}
+    for i := 0; i < b.N; i++ {
+        for j := 0; j < batch; j++ {
+            wg.Add(1)
+            go func(wg *sync.WaitGroup, slice []float64) {
+                defer wg.Done()
+                heavyTask(slice)
+            }(&wg, slice)
+        }
+    }
 
-	wg.Wait()
-	b.StopTimer()
+    wg.Wait()
+    b.StopTimer()
 }
 
 func BenchmarkWorkerPool(b *testing.B) {
-	slice := make([]float64, 0, sliceSize)
-	fillSlice(&slice)
+    slice := make([]float64, 0, sliceSize)
+    fillSlice(&slice)
 
-	maxP := runtime.GOMAXPROCS(0)
-	sem := make(chan []float64, maxP)
-	wg := sync.WaitGroup{}
+    maxP := runtime.GOMAXPROCS(0)
+    sem := make(chan []float64, maxP)
+    wg := sync.WaitGroup{}
 
-	for i := 0; i < maxP; i++ {
-		go func (wg *sync.WaitGroup)  {
-			for slice := range sem {
-				heavyTask(slice)
-				wg.Done()
-			}
-		}(&wg)
-	}
+    for i := 0; i < maxP; i++ {
+        go func (wg *sync.WaitGroup)  {
+            for slice := range sem {
+                heavyTask(slice)
+                wg.Done()
+            }
+        }(&wg)
+    }
 
-	b.ResetTimer()
-	b.ReportAllocs()
+    b.ResetTimer()
+    b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < batch; j++ {
+    for i := 0; i < b.N; i++ {
+        for j := 0; j < batch; j++ {
       wg.Add(1)
-			sem <- slice
-		}
-	}
+            sem <- slice
+        }
+    }
 
-	wg.Wait()
-	b.StopTimer()
-	close(sem)
+    wg.Wait()
+    b.StopTimer()
+    close(sem)
 }
 ```
 
@@ -3456,7 +3456,7 @@ WITH pool AS (
     SELECT id 
     FROM tasks_sched
     WHERE 
-    	-- Втягиваем waiting
+        -- Втягиваем waiting
         status = 'waiting'
         OR 
         -- Либо вытягиваем те строки которые были заблокированы
@@ -3529,7 +3529,7 @@ where id in ([8]task_id)
 
 -- Нагружаем Worker Pool
 -- for task := range tasks {
--- 		workerPool.Add(task)
+--      workerPool.Add(task)
 -- }
 ```
 
@@ -3558,7 +3558,7 @@ WHERE id IN (
     SELECT id FROM tasks_sched
     WHERE status = 'waiting' 
        OR (status = 'running' AND heartbeat < NOW()) -- Если другой под не завершил задачу, 
-  																									 -- то он скорее всего умер 
+                                                                                                     -- то он скорее всего умер 
     ORDER BY id ASC
     LIMIT 8
     FOR UPDATE SKIP LOCKED
@@ -3589,7 +3589,7 @@ UPDATE tasks_sched SET heartbeat = NOW() + INTERVAL '5 minutes' WHERE id = <sche
 func CreateTask(req *http.Request, resp *http.Response) {
   db.CreateTask(task)
   db.SchedPutTask(schedPutTask)
-	defer redis.Pub(signal)
+    defer redis.Pub(signal)
 }
 // ------------------------------------------------------------------------------------------------------
 
@@ -3609,40 +3609,40 @@ func schedule(redisSig chan struct{}) {
     workerPoolSleep = true
   }
   
-	for {
+    for {
     select {
       case <- workerPool.Sig:
         if !broadcast {
           workerPoolSleep = true
           continue
         }
-      	
-      	broadcast = false
+        
+        broadcast = false
         if !runTasks() {
           workerPoolSleep = true
           continue
         } 
         workerPoolSleep = false
-      	
+        
       case <- redisSig:
-      	broadcast = true
+        broadcast = true
       
         if workerPoolSleep && runTasks() {
           workerPoolSleep = false
           continue
         }
     }
-	}
+    }
 }
 
 func runTasks() bool {
   tasks := db.GetSchedTasks()
   if len(tasks) == 0 {
-  	return false
+    return false
   }
 
   for idx := range tasks {
-  	workerPool.Put(tasks[idx])
+    workerPool.Put(tasks[idx])
   }
   return true
 }
@@ -3701,141 +3701,141 @@ func runTasks() bool {
 ```go 
 
 type int64OnCacheLine struct {
-	state int64
-	/*
-		macos + m1:
-			bash:> sysctl hw.cachelinesize
-			bash:> 128
+    state int64
+    /*
+        macos + m1:
+            bash:> sysctl hw.cachelinesize
+            bash:> 128
 
-		int64 = 8, тогда 128 - 8 = 120
-	*/
-	_ [120]byte
+        int64 = 8, тогда 128 - 8 = 120
+    */
+    _ [120]byte
 }
 
 type stateHandleInt64Slice struct {
-	/*
-		Размещаем каждый элемент слайса так, чтобы каждый
-		лежал в разных кэш-линиях, чтобы не использовать
-		более дорогой sync.Mutex/RWmutex
-	*/
-	handleBatchFlags []int64OnCacheLine
+    /*
+        Размещаем каждый элемент слайса так, чтобы каждый
+        лежал в разных кэш-линиях, чтобы не использовать
+        более дорогой sync.Mutex/RWmutex
+    */
+    handleBatchFlags []int64OnCacheLine
 }
 
 func GetMaxBigSliceInt64(ctx context.Context, slice []int64, sizeOfBatch ...int) (int64, error) {
-	/*
-		P.S. автор балуется :))
-		Смотри, нам надо как-то понять сколько горутин запустить.
-		Чтобы понять сколько, надо понимать какого размера батчи нужены, так?
-		Давай отталкиваться оттого, что каждая горутина выгрузит
-		в L-кэш кусок backing array слайса - батч.
-		Было бы неплохо создать немного горутин, чтобы не давить на планировщик
-		но и так чтобы чтение данных было быстрым.
-		Значит неплохо бы было, чтобы батч лежал в L2: это золотая середина, так как
-		это быстре чем читать из L3 и уже тем более из RAM, но L2 достаточно большой
-		чтобы вместить большой батч, нежели L1.
-		Мы не знаем точно на какой M (поток, а поток живет на одном из ядре CPU)
-		будут размещены G. Мы лишь знаем что runtime.newproc новую G всегда заселяет
-		на тот P, на которой вызвал runtime.newproc в runnext, а "прошлую" runnext
-		отселяет в хвост runq этого P. Мы точно не знаем, заберет ли другой P из runq
-		горутины у текущего P, но в теории G из хвоста могут оказаться на другом M.
-		То есть мы можем быть уверен (не на 100%, но с самой высокой вероятностью) в том,
-		что только последняя из наших G будет выполняться на текущем M.
-		Ок, тогда давай считать что наш батч должен занимать 25% всего L2 кэша
-		чтобы снизить риск того, что при OS Context Switch мы "смоем" чужой кэш
-		или чтобы снизить риск того, что "смоют" наш кэш.
-		Тогда кол-во элементов в батче должно быть таким:
-			bacth_size = (L2_size * 0.25) / int64_size
-		В M1 + MacOS, размер кэша:
-			bash:> sysctl hw.l2cachesize
-			bash:> 4194304
-		тогда:
-			(4_194_304 * 0.25) / 8 = 131_072
-	*/
-	const defaultBatchSize int = 131_072
+    /*
+        P.S. автор балуется :))
+        Смотри, нам надо как-то понять сколько горутин запустить.
+        Чтобы понять сколько, надо понимать какого размера батчи нужены, так?
+        Давай отталкиваться оттого, что каждая горутина выгрузит
+        в L-кэш кусок backing array слайса - батч.
+        Было бы неплохо создать немного горутин, чтобы не давить на планировщик
+        но и так чтобы чтение данных было быстрым.
+        Значит неплохо бы было, чтобы батч лежал в L2: это золотая середина, так как
+        это быстре чем читать из L3 и уже тем более из RAM, но L2 достаточно большой
+        чтобы вместить большой батч, нежели L1.
+        Мы не знаем точно на какой M (поток, а поток живет на одном из ядре CPU)
+        будут размещены G. Мы лишь знаем что runtime.newproc новую G всегда заселяет
+        на тот P, на которой вызвал runtime.newproc в runnext, а "прошлую" runnext
+        отселяет в хвост runq этого P. Мы точно не знаем, заберет ли другой P из runq
+        горутины у текущего P, но в теории G из хвоста могут оказаться на другом M.
+        То есть мы можем быть уверен (не на 100%, но с самой высокой вероятностью) в том,
+        что только последняя из наших G будет выполняться на текущем M.
+        Ок, тогда давай считать что наш батч должен занимать 25% всего L2 кэша
+        чтобы снизить риск того, что при OS Context Switch мы "смоем" чужой кэш
+        или чтобы снизить риск того, что "смоют" наш кэш.
+        Тогда кол-во элементов в батче должно быть таким:
+            bacth_size = (L2_size * 0.25) / int64_size
+        В M1 + MacOS, размер кэша:
+            bash:> sysctl hw.l2cachesize
+            bash:> 4194304
+        тогда:
+            (4_194_304 * 0.25) / 8 = 131_072
+    */
+    const defaultBatchSize int = 131_072
 
-	var batchSize = defaultBatchSize
-	if len(sizeOfBatch) > 0 {
-		batchSize = sizeOfBatch[0]
-	}
+    var batchSize = defaultBatchSize
+    if len(sizeOfBatch) > 0 {
+        batchSize = sizeOfBatch[0]
+    }
 
-	countBatches := len(slice) / batchSize
-	if countBatches <= 1 {
-		var max = slice[0]
-		for idx := range slice {
-			if slice[idx] > max {
-				max = slice[idx]
-			}
-		}
+    countBatches := len(slice) / batchSize
+    if countBatches <= 1 {
+        var max = slice[0]
+        for idx := range slice {
+            if slice[idx] > max {
+                max = slice[idx]
+            }
+        }
 
-		return max, nil
-	}
+        return max, nil
+    }
 
-	states := stateHandleInt64Slice{
-		handleBatchFlags: make([]int64OnCacheLine, countBatches+1),
-	}
-	grp, gctx := errgroup.WithContext(ctx)
-	// SetLimit - внутри есть семафор, канал, размер которго мы сейчас установили.
-	// runtime.GOMAXPROCS(0) - с этой телегой мы уже знакомы, пояснять не надо :)
-	grp.SetLimit(runtime.GOMAXPROCS(0))
+    states := stateHandleInt64Slice{
+        handleBatchFlags: make([]int64OnCacheLine, countBatches+1),
+    }
+    grp, gctx := errgroup.WithContext(ctx)
+    // SetLimit - внутри есть семафор, канал, размер которго мы сейчас установили.
+    // runtime.GOMAXPROCS(0) - с этой телегой мы уже знакомы, пояснять не надо :)
+    grp.SetLimit(runtime.GOMAXPROCS(0))
 
-	/*
-		В go >= 1.23:
-			for batch := range slices.Chunk(actions, batchSize) {
-				...etc
-			}
-	*/
-	var batchIdx int
-	for idx := 0; idx < len(slice); idx += batchSize {
-		end := idx + batchSize
+    /*
+        В go >= 1.23:
+            for batch := range slices.Chunk(actions, batchSize) {
+                ...etc
+            }
+    */
+    var batchIdx int
+    for idx := 0; idx < len(slice); idx += batchSize {
+        end := idx + batchSize
 
-		if end > len(slice) {
-			end = len(slice)
-		}
+        if end > len(slice) {
+            end = len(slice)
+        }
 
-		batch := slice[idx:end]
-		batchMaxVal := &states.handleBatchFlags[batchIdx]
-		batchIdx++
+        batch := slice[idx:end]
+        batchMaxVal := &states.handleBatchFlags[batchIdx]
+        batchIdx++
 
-		grp.Go(func() error {
-			/*
-				Проверяем только здесь, на тот случай если вышли за лимит runtime.GOMAXPROCS(0)
-				Тогда горутины, которые еще не запустились из-за лока внутри grp.Go,
-				проверят не вышли ли они за пределы ожидания пользователя
-			*/
-			if err := gctx.Err(); err != nil {
-				return err
-			}
+        grp.Go(func() error {
+            /*
+                Проверяем только здесь, на тот случай если вышли за лимит runtime.GOMAXPROCS(0)
+                Тогда горутины, которые еще не запустились из-за лока внутри grp.Go,
+                проверят не вышли ли они за пределы ожидания пользователя
+            */
+            if err := gctx.Err(); err != nil {
+                return err
+            }
 
-			batchMaxVal.state = batch[0]
-			for idx := range batch {
-				if batch[idx] > batchMaxVal.state {
-					batchMaxVal.state = batch[idx]
-				}
-			}
+            batchMaxVal.state = batch[0]
+            for idx := range batch {
+                if batch[idx] > batchMaxVal.state {
+                    batchMaxVal.state = batch[idx]
+                }
+            }
 
-			return nil
-		})
-	}
+            return nil
+        })
+    }
 
-	/*
-		Любая из G, которая первой свалилась с ошибкой
-		запишет ошибку и здесь мы ее получим.
-		Но если остальные G не проверяют gctx, то будем ждать всех,
-		так внутри errgroup, "поломка" любой из G,
-		вызвает функцию отмены контекста gctx.
-	*/
-	if err := grp.Wait(); err != nil {
-		return -1, err
-	}
+    /*
+        Любая из G, которая первой свалилась с ошибкой
+        запишет ошибку и здесь мы ее получим.
+        Но если остальные G не проверяют gctx, то будем ждать всех,
+        так внутри errgroup, "поломка" любой из G,
+        вызвает функцию отмены контекста gctx.
+    */
+    if err := grp.Wait(); err != nil {
+        return -1, err
+    }
 
-	maxSliceValue := states.handleBatchFlags[0].state
-	for idx := range states.handleBatchFlags {
-		if states.handleBatchFlags[idx].state > maxSliceValue {
-			maxSliceValue = states.handleBatchFlags[idx].state
-		}
-	}
+    maxSliceValue := states.handleBatchFlags[0].state
+    for idx := range states.handleBatchFlags {
+        if states.handleBatchFlags[idx].state > maxSliceValue {
+            maxSliceValue = states.handleBatchFlags[idx].state
+        }
+    }
 
-	return maxSliceValue, nil
+    return maxSliceValue, nil
 }
 ```
 
@@ -3853,10 +3853,10 @@ func GetMaxBigSliceInt64(ctx context.Context, slice []int64, sizeOfBatch ...int)
 const sliceSize = 100_000_000
 
 func createSlice() []int64 {
-	slice := make([]int64, sliceSize)
-	slice[0] = int64(math.MaxInt64)
+    slice := make([]int64, sliceSize)
+    slice[0] = int64(math.MaxInt64)
 
-	return slice
+    return slice
 }
 
 /*
@@ -3869,19 +3869,19 @@ BenchmarkClearAlg-8
 25          44_080_808 ns/op               0 B/op          0 allocs/op
 */
 func BenchmarkClearAlg(b *testing.B) {
-	slice := createSlice()
+    slice := createSlice()
 
-	b.ResetTimer()
-	b.ReportAllocs()
+    b.ResetTimer()
+    b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
-		var max = slice[0]
-		for idx := range slice {
-			if slice[idx] > max {
-				max = slice[idx]
-			}
-		}
-	}
+    for i := 0; i < b.N; i++ {
+        var max = slice[0]
+        for idx := range slice {
+            if slice[idx] > max {
+                max = slice[idx]
+            }
+        }
+    }
 }
 
 /*
@@ -3895,20 +3895,20 @@ BenchmarkErrgroupM1Default-8
 81          15_078_669 ns/op          166715 B/op       1533 allocs/op
 */
 func BenchmarkErrgroupM1Default(b *testing.B) {
-	slice := createSlice()
+    slice := createSlice()
 
-	b.ResetTimer()
-	b.ReportAllocs()
+    b.ResetTimer()
+    b.ReportAllocs()
 
-	// если ты в коде видишь idx
-	// а в тестах i, знай это бред автора :)
-	// которого немного раздражает idx здесь
-	// так ему кажется что имя idx - относится к логике
-	// а имя i - относится к "служебным именам".
-	// забей, автор и его бредовые заморочки :)
-	for i := 0; i < b.N; i++ {
-		GetMaxBigSliceInt64(context.Background(), slice)
-	}
+    // если ты в коде видишь idx
+    // а в тестах i, знай это бред автора :)
+    // которого немного раздражает idx здесь
+    // так ему кажется что имя idx - относится к логике
+    // а имя i - относится к "служебным именам".
+    // забей, автор и его бредовые заморочки :)
+    for i := 0; i < b.N; i++ {
+        GetMaxBigSliceInt64(context.Background(), slice)
+    }
 }
 ```
 
@@ -3934,14 +3934,14 @@ BenchmarkErrgroupCustom-8
 85          14_194_112 ns/op           23332 B/op        206 allocs/op
 */
 func BenchmarkErrgroupCustom(b *testing.B) {
-	slice := createSlice()
+    slice := createSlice()
 
-	b.ResetTimer()
-	b.ReportAllocs()
+    b.ResetTimer()
+    b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
-		GetMaxBigSliceInt64(context.Background(), slice, 1_000_000)
-	}
+    for i := 0; i < b.N; i++ {
+        GetMaxBigSliceInt64(context.Background(), slice, 1_000_000)
+    }
 }
 ```
 
@@ -3961,15 +3961,15 @@ func BenchmarkErrgroupCustom(b *testing.B) {
 // Давай изменим код поиска Максимума
 batchMaxVal.state = batch[0]
 for idx := range batch {
-	tmp := math.Sqrt(float64(batch[idx]))
-	tmp = math.Sin(tmp)
-	if tmp > float64(batchMaxVal.state) {
-		batchMaxVal.state = batch[idx]
-	}
+    tmp := math.Sqrt(float64(batch[idx]))
+    tmp = math.Sin(tmp)
+    if tmp > float64(batchMaxVal.state) {
+        batchMaxVal.state = batch[idx]
+    }
 }
 
 // Реальное ускорение получилось только в паре:
-// 		sliceSize = 1_000_000, customBatchSize = 500_000
+//      sliceSize = 1_000_000, customBatchSize = 500_000
 // А вот остальные комбинации sliceSize + customBatchSize
 // дают крошечное ускорение, но проблема с аллокациями никуда не делась :)
 //
@@ -4011,14 +4011,14 @@ for idx := range batch {
 > 2) Пуска батч 1_000_000, то один батч весит 8_000_000 байт, то и давление на L2 = 8_000_000 байт при размере L2 =4_194_304 байт, зато создаем всего-то 3 горутин
 
 ```text
-bacthSize=1_000_000,   sliceSize=3_289_728: 	2_317_151 ns/op
-																							2_327_628 ns/op
-  																						2_337_386 ns/op
-																							2_310_040 ns/op
-bacthSize=default,     sliceSize=3_289_728:  	1_646_455 ns/op 
-																							1_774_749 ns/op
-																							1_639_311 ns/op
-																							1_647_803 ns/op
+bacthSize=1_000_000,   sliceSize=3_289_728:     2_317_151 ns/op
+                                                                                            2_327_628 ns/op
+                                                                                        2_337_386 ns/op
+                                                                                            2_310_040 ns/op
+bacthSize=default,     sliceSize=3_289_728:     1_646_455 ns/op 
+                                                                                            1_774_749 ns/op
+                                                                                            1_639_311 ns/op
+                                                                                            1_647_803 ns/op
 ```
 
 Вывод: Тактика 25% L2 сработала, не смотря на оверхэд планировщика, которому надо создать/спланировать 25 горутин вместо 3 горутин. Ускорение нехилое 30%. *P.S.: не забывай, это недешево, мы 25 горутинами давим на GC!*
@@ -4030,14 +4030,14 @@ bacthSize=default,     sliceSize=3_289_728:  	1_646_455 ns/op
 >
 
 ```text
-bacthSize=524_280,     sliceSize=3_289_728: 	2_148_401 ns/op
-																							2_181_388 ns/op
-  																						2_208_811 ns/op
-																							2_208_759 ns/op
-bacthSize=default,     sliceSize=3_289_728:  	1_646_455 ns/op 
-																							1_774_749 ns/op
-																							1_639_311 ns/op
-																							1_647_803 ns/op
+bacthSize=524_280,     sliceSize=3_289_728:     2_148_401 ns/op
+                                                                                            2_181_388 ns/op
+                                                                                        2_208_811 ns/op
+                                                                                            2_208_759 ns/op
+bacthSize=default,     sliceSize=3_289_728:     1_646_455 ns/op 
+                                                                                            1_774_749 ns/op
+                                                                                            1_639_311 ns/op
+                                                                                            1_647_803 ns/op
 ```
 
 Вывод: тактика 99% L2 не сработала
@@ -4050,17 +4050,17 @@ bacthSize=default,     sliceSize=3_289_728:  	1_646_455 ns/op
 
 ```text
 bacthSize=1_000_000,   sliceSize=40_000_000: 18_425_772 ns/op
-																						 18_522_013 ns/op
-  																					 17_899_115 ns/op
-																						 18_993_173 ns/op
+                                                                                         18_522_013 ns/op
+                                                                                     17_899_115 ns/op
+                                                                                         18_993_173 ns/op
 bacthSize=default,     sliceSize=40_000_000: 17_376_276 ns/op 
-																						 18_072_150 ns/op
-																						 17_954_365 ns/op
-																						 19_334_655 ns/op
+                                                                                         18_072_150 ns/op
+                                                                                         17_954_365 ns/op
+                                                                                         19_334_655 ns/op
 bacthSize=5_000_000,   sliceSize=40_000_000: 19_969_944 ns/op
-																						 20_233_083 ns/op
-  																					 19_743_330 ns/op
-																						 20_159_881 ns/op
+                                                                                         20_233_083 ns/op
+                                                                                     19_743_330 ns/op
+                                                                                         20_159_881 ns/op
 ```
 
 Вывод: Бинго, а вот здесь хак 25% L2 абсолютно бесполезен, только давление на GC оказывается кратно большее :). "Загрузка" рантайма строго под GOMAXPROC тоже не дала какого-либо профита, но вот аллокаций в 4.5 меньше в сравнении с использованием батча 1_000_000, что на дистанации дает "неявно" ускорении так GC придется меньше работать :) А вот 25% L2 не только не дает ускорения но и создает давление в 29 раз большее чем при использовании батча 5_000_000.
