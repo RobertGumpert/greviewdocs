@@ -556,10 +556,11 @@ func main() {
 
    ```go
    type String struct {
-       len  int
-       backing_array unsafe.Pointer 	// адрес (указатель) первого элемента [0] массива байт
-                           					// на массив байт в куче
-                           					// (но может и в .rodata, если строка известна на этапе компиляции)
+   	len           int
+     // адрес (указатель) первого элемента [0]
+     // массива байт на массив байт в куче
+     // (но может и в .rodata, если строка известна на этапе компиляции)
+   	backing_array unsafe.Pointer 					
    }
    ```
 
@@ -660,7 +661,7 @@ test %rbx,%rbx
 
 ... и все :)
 
-Определить находится или не находится переменная в куче поможет **Escape Analyze**. 
+Определить находится или не находится переменная в куче поможет **GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go**. 
 
 ```go
 GOOS=linux GOARCH=amd64 go build -gcflags="-m" main.go
@@ -704,7 +705,9 @@ GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go
 	flow: {heap} <- &b:
 	from b (too large for stack) at ./main.go:73:2
 	moved to heap: b
+```
 
+```assembly
 00000000004982e0 <main._foo>:
   cmpq	0x10(%r14), %rsp
   jbe	0x498316 <main._foo+0x36>
@@ -749,19 +752,22 @@ GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go
 	s escapes to heap in main:
 	flow: {heap} <- &s:
 	from s (too large for stack) at ./main.go:64:2
+```
 
+```assembly
 0000000000498280 <main.main>:
- …
- callq	0x416120 <runtime.newobject>
- movq	%rax, 0xf4250(%rsp)
- callq	0x498320 <main._foo>
- …
+	# ... etc
+  callq	0x416120 <runtime.newobject>
+  movq	%rax, 0xf4250(%rsp)
+  callq	0x498320 <main._foo>
+  # ... etc
 
 0000000000498320 <main._foo>:
- rep		stosq	%rax, %es:(%rdi)
- leaq	0x1131c(%rip), %rax     # 0x4a9660 <type:*+0x10660>
- callq	0x416120 <runtime.newobject>
-
+	# ... etc
+  rep		stosq	%rax, %es:(%rdi)
+  leaq	0x1131c(%rip), %rax     			# 0x4a9660 <type:*+0x10660>
+  callq	0x416120 <runtime.newobject>
+  # ... etc
 ```
 
 ---
@@ -818,72 +824,72 @@ func _foo() (user User) {
     user.ID = 7
     return user
 }
+```
 
-assembler:
+```assembly
 0000000000498280 <main.main>:
-	// ...etc
-	subq	$0x130, %rsp											// main резервирует 0x130 - 304 байа
-																					// структура User весит 152 байт, то есть как раз
-                                          // под return area + локальную переменную user
-																					// rsp+0x8 — это и есть начало return area для _foo
-																					// то бишь: 0x8-0xa0
-	callq	0x498380 <main._foo>
-  // ... etc
-	leaq 0xa0(%rsp), %rdi   								// Сюда пишем: начиная с адреса 0xa0 и 
-																					// вверх по адресам записываем содержимое из return area,
-																					// тем сам создадим локальную переменную user (0xa0 - 0x138)
-																					// P.S.: 0xa0(%rsp) - это 
-																					//			 user.Login.RegistrationDate.Year (см. ниже)
-																					// 			 0xa0 = 160, -8 байт на сохраненый RBP, 
-																					// 			 как раз получается 152 байт, то есть размер User.
-	leaq 0x8(%rsp), %rsi    								// Отсюда копируем: начиная с адреса 0x8 копируем вверх,
-																					// к адресу 0xa0, то есть как раз 152 байта :)
-																					// P.S.: nо есть "бежим" по return area.
-	callq	0x474a42 <runtime.duffcopy+0x302>	// копирует, используя регистры rdi и rsi
-	// ...etc
-  leaq	0x8(%rsp), %rdi	  								// Сюда пишем: начиная с адреса 0x8 (return area) и вверх 
-	leaq	0xa0(%rsp), %rsi  								// до адреса 0xa0.
-	callq	0x474a42 <runtime.duffcopy+0x302> // Отсюда копируем: от адреса 0xa0 (user) и вверхдо адреса
-																					// 0x138. То есть GO переиспользует область памяти 0x8 - 0xa0
-																					// в разных целях:
-																					// 1) сначала для return area
-																					// 2) потом для spill slot
-	callq	0x498320 <main._foo_1>
+    # ...etc
+    subq    $0x130, %rsp                        # main резервирует 0x130 - 304 байта
+                                                # структура User весит 152 байт, то есть как раз
+                                                # под return area + локальную переменную user
+                                                # rsp+0x8 — это и есть начало return area для _foo
+                                                # то бишь: 0x8-0xa0
+    callq   0x498380 <main._foo>
+    # ... etc
+    leaq    0xa0(%rsp), %rdi                    # Сюда пишем: начиная с адреса 0xa0 и 
+                                                # вверх по адресам записываем содержимое из return area,
+                                                # тем сам создадим локальную переменную user 
+                                                # (0xa0 - 0x138)
+                                                # P.S.: 0xa0(%rsp) - это 
+                                                #       user.Login.RegistrationDate.Year (см. ниже)
+                                                #       0xa0 = 160, -8 байт на сохраненый RBP, 
+                                                #       как раз получается 152 байт, то есть размер User.
+    leaq    0x8(%rsp), %rsi                     # Отсюда копируем: начиная с адреса 0x8 копируем вверх,
+                                                # к адресу 0xa0, то есть как раз 152 байта :)
+                                                # P.S.: то есть "бежим" по return area.
+    callq   0x474a42 <runtime.duffcopy+0x302>   # копирует, используя регистры rdi и rsi
+    # ...etc
+    leaq    0x8(%rsp), %rdi                     # Сюда пишем: начиная с адреса 0x8 (return area) и вверх 
+    leaq    0xa0(%rsp), %rsi                    # до адреса 0xa0.
+    callq   0x474a42 <runtime.duffcopy+0x302>   # Отсюда копируем: от адреса 0xa0 (user)
+                                                # и вверх до адреса 0x138. То есть GO 
+                                                # переиспользует область памяти 0x8 - 0xa0 
+                                                # в разных целях:
+                                                # 1) сначала для return area
+                                                # 2) потом для spill slot
+    callq   0x498320 <main._foo_1>
 
 0000000000498380 <main._foo>:
- 	pushq	%rbp
-  movq	%rsp, %rbp
-	// _foo не делает subq для своего буфера — своего буфера нет! RSP смортрит на фрейм main.main!
-  // ...etc
-	// создает zero-value для User
-  leaq	0x18(%rsp), %rdi							// RSP смотрит на фрейм main.main
-  // ...etc
-	0x4746f9 <runtime.duffzero+0x139>
-	// пишет напрямую в стек main,
-	// путем смещения адреса в rsp
-	movq	$0x1, 0x18(%rsp)							// user.Birthday.Day = 1 
- 	movq	$0x2, 0x20(%rsp)							// user.Birthday.Month = 2
-  movq	$0x3, 0x28(%rsp)							// user.Birthday.Year = 3
-  // ...etc
-  movq	$0x6, 0xa0(%rsp)							// user.Login.RegistrationDate.Year = 6
-  movq	$0x7, 0x10(%rsp)							// user.ID
+    pushq   %rbp
+    movq    %rsp, %rbp
+    # _foo не делает subq для своего буфера — своего буфера нет! RSP смотрит на фрейм main.main!
+    # ...etc
+    # создает zero-value для User
+    leaq    0x18(%rsp), %rdi                    # RSP смотрит на фрейм main.main
+    # ...etc
+    callq   0x4746f9 <runtime.duffzero+0x139>
+    # пишет напрямую в стек main, путем смещения адреса в rsp
+    movq    $0x1, 0x18(%rsp)                    # user.Birthday.Day = 1 
+    movq    $0x2, 0x20(%rsp)                    # user.Birthday.Month = 2
+    movq    $0x3, 0x28(%rsp)                    # user.Birthday.Year = 3
+    # ...etc
+    movq    $0x6, 0xa0(%rsp)                    # user.Login.RegistrationDate.Year = 6
+    movq    $0x7, 0x10(%rsp)                    # user.ID
 
 0000000000498320 <main._foo_1>:
-		subq	$0x28, %rsp 			// _foo_1 сдвигает вниз RSP на -28
-
-  	// ... etc
-  	movq	0x38(%rsp), %rax	// RSP - 28 + 38 -> то есть получаем RSP + 10
-														// то есть ровно в user.ID :)
-														// См. код _foo -> movq	$0x7, 0x10(%rsp) -> user.ID
-  	callq	0x46c5e0 <runtime.convT64>
-		// вычисляется адрес (указатель) на _type для uint64 (user.ID uint64)
-  	leaq	0xaa9b(%rip), %rcx      # 0x4a2de0 <type:*+0x9de0> 
-		// формируется eface или же any или interface{}
-  	movq	%rcx, 0x18(%rsp) 	// в регистр помещается указатель на _type для uint64 
-  	movq	%rax, 0x20(%rsp) 	// в регистр помещается указатель на data 
-													 	// то есть указатель на uint64 (user.ID *uint64)
-		// ...etc
-
+    subq    $0x28, %rsp                         # _foo_1 сдвигает вниз RSP на -28
+    # ... etc
+    movq    0x38(%rsp), %rax                    # RSP - 28 + 38 -> то есть получаем RSP + 10
+                                                # то есть ровно в user.ID :)
+                                                # См. код _foo -> movq $0x7, 0x10(%rsp) -> user.ID
+    callq   0x46c5e0 <runtime.convT64>
+    # вычисляется адрес (указатель) на _type для uint64 (user.ID uint64)
+    leaq    0xaa9b(%rip), %rcx                  # 0x4a2de0 <type:*+0x9de0> 
+    # формируется eface или же any или interface{}
+    movq    %rcx, 0x18(%rsp)                    # в регистр помещается указатель на _type для uint64 
+    movq    %rax, 0x20(%rsp)                    # в регистр помещается указатель на data 
+                                                # то есть указатель на uint64 (user.ID *uint64)
+    # ...etc
 ```
 
 Итог GO вместо указатель исполтзует для "zero-copy" или передали аргументов махинации с адресами которые лежат в RSP :) 
@@ -999,30 +1005,32 @@ func _foo_1(user *User) {
     fmt.Println(user.ID)
 }
 
-Escape analyze:
+GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go:
 	user does not escape
 	... argument does not escape
 	user.ID escapes to heap
+```
 
-Assembler:
+```assembly
 0000000000498280 <main.main>:
- 		// ... etc
-  	callq 0x498360 <main._foo>
-		// уже знакомая на конструкция :)
-  	leaq	 0xa0(%rsp), %rdi
-  	leaq	 0x8(%rsp), %rsi
-  	callq	0x474a42 <runtime.duffcopy+0x302>
-    // ... etc
-  	leaq	0x98(%rsp), %rax 						// Вычисляется адрес начало переменной user в стеке main
-  	callq	0x498300 <main._foo_1>
-		// ... etc
+    # ... etc
+    callq   0x498360 <main._foo>
+    # уже знакомая на конструкция :)
+    leaq    0xa0(%rsp), %rdi
+    leaq    0x8(%rsp), %rsi
+    callq   0x474a42 <runtime.duffcopy+0x302>
+    # ... etc
+    leaq    0x98(%rsp), %rax                # Вычисляется адрес начало переменной user в стеке main
+    callq   0x498300 <main._foo_1>
+    # ... etc
 
 0000000000498300 <main._foo_1>:
-		// ... etc
-  	movq	(%rax), %rax 								// Это разыменование указателя, то есть чтение по адресу user.ID
-																			// прям со стека main.main :)
-  	callq	0x46c5e0 <runtime.convT64>
-		// ... etc
+    # ... etc
+    movq    (%rax), %rax                    # Это разыменование указателя,
+                                            # то есть чтение по адресу user.ID
+                                            # прям со стека main.main :)
+    callq   0x46c5e0 <runtime.convT64>
+    # ... etc
 ```
 
 То аргумент user не будет указывать на объект в куче, а будет указывать на место в стеке функции main где лежит user.ID! Но почему? Потому, что компилятор задался вопросом: Может ли `&user` быть доступен после того как `main` вернётся?. Ответ нет, так переменная user никуда далее не сохраняется, достаточно просто читать/писать в одну область памяти из стека main, поэтому можно оптимизировать и передать указатель на место в стеке main, а не выполнять копирование переменной user для размещения копии в секции для аргументов. Даже если мы изменим код таким образом (смотри ниже), то все равно утечки в кучу не будет:
@@ -1116,7 +1124,7 @@ func _foo() *User {
     return &u
 }
 
-escape analyze:
+GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go:
 	moved to heap: user
 ```
 
@@ -1130,34 +1138,35 @@ escape analyze:
 
 ```go
 type User struct {
-	A int64		    		      // 8 Б
-	_ [65536 - 8 - 8]byte   // 64 kib - 8 байт на int64 - 8 байт padding int64
+    A int64                 // 8 Б
+    _ [65536 - 8 - 8]byte   // 64 kib - 8 байт на int64 - 8 байт padding int64
 }
 
 func main() {
-	task := make(chan User)
-	result := make(chan User)
-	
-  go _foo(task, result)
+    task := make(chan User)
+    result := make(chan User)
+    
+    go _foo(task, result)
 
-	user := User{}
-	task <- user
-	res := <- result
-	_foo_2(&res)
-	_ = res.A
+    user := User{}
+    task <- user
+    res := <- result
+    _foo_2(&res)
+    _ = res.A
 }
 
 func _foo(task, result chan User) {
-	for val := range task {
-		val.A = val.A + 1
-		result <- val
-	}
-}
-func _foo_2(localUser *User) {
-	localUser.A = localUser.A + 1
+    for val := range task {
+        val.A = val.A + 1
+        result <- val
+    }
 }
 
-escape analyze:
+func _foo_2(localUser *User) {
+    localUser.A = localUser.A + 1
+}
+
+GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go:
 	task does not escape
 	result does not escape
 	localUser does not escape
@@ -1167,45 +1176,46 @@ escape analyze:
 
 ```go
 type User struct {
-	A int64		    		// 8 Б
-	_ [65536 - 8]byte // 64 kib - 8 байт на int64
+    A int64           // 8 Б
+    _ [65536 - 8]byte // 64 kib - 8 байт на int64
 }
 
-Build Error: go build -o -gcflags all=-N -l .
-	channel element type too large (>64kB)
-	channel element type too large (>64kB)
-	channel element type too large (>64kB) (exit status 1)
+// Build Error: go build -o -gcflags all=-N -l .
+//     channel element type too large (>64kB)
+//     channel element type too large (>64kB)
+//     channel element type too large (>64kB) (exit status 1)
 
 // Сломали? Чиним!
 
 type User struct {
-	A int64		    		// 8 Б
-	_ [65536 - 8]byte   // 64 kib - 8 байт на int64
+    A int64           // 8 Б
+    _ [65536 - 8]byte // 64 kib - 8 байт на int64
 }
 
 func main() {
-	task := make(chan *User)
-	result := make(chan *User)
-	go _foo(task, result)
+    task := make(chan *User)
+    result := make(chan *User)
+    go _foo(task, result)
 
-	user := User{}
-	task <- &user
-	res := <- result
-	_foo_2(res)
-	_ = res.A
+    user := User{}
+    task <- &user
+    res := <- result
+    _foo_2(res)
+    _ = res.A
 }
 
 func _foo(task, result chan *User) {
-	for val := range task {
-		val.A = val.A + 1
-		result <- val
-	}
-}
-func _foo_2(localUser *User) {
-	localUser.A = localUser.A + 1
+    for val := range task {
+        val.A = val.A + 1
+        result <- val
+    }
 }
 
-escape analyze:
+func _foo_2(localUser *User) {
+    localUser.A = localUser.A + 1
+}
+
+GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go:
   task does not escape
 	result does not escape
 	localUser does not escape
@@ -1232,175 +1242,175 @@ escape analyze:
 > P.S. дальше по тексту встретишь термин funcval, в GO рантайме структура для функций, который нужно передать/сохранить как значение, всегда создает структуру funcval из которой он понимает что нужно для запуска твоей функции
 >
 > ```go
-> go func(){}() 							-> создан объект funcval для func(){}
-> workerPool.Submit(func(){}) -> создан объект funcval для func(){}
+> go func(){}()               // -> создан объект funcval для func(){}
+> workerPool.Submit(func(){}) // -> создан объект funcval для func(){}
 > ```
 
 ```go
 // :)
 type ДелательВпечатлений interface {
-	ДелайВаау() error
-	ДелайКруто() error
+    ДелайВаау() error
+    ДелайКруто() error
 }
 
-type myCoolImpl struct {}
-func(i *myCoolImpl) ДелайВаау() error {return nil}
-func(i *myCoolImpl) ДелайКруто() error {return nil}
+type myCoolImpl struct{}
 
-type contacts struct{
-	email string
+func (i *myCoolImpl) ДелайВаау() error  { return nil }
+func (i *myCoolImpl) ДелайКруто() error { return nil }
+
+type contacts struct {
+    email string
 }
 type user struct {
-	id uint64
-	contacts *contacts
+    id       uint64
+    contacts *contacts
 }
 
 type untypedUser struct {
-	id 		 unsafe.Pointer
-	contacts unsafe.Pointer
+    id       unsafe.Pointer
+    contacts unsafe.Pointer
 }
 
 type myIface struct {
-	funcvalsNames []string
-	funcvals []unsafe.Pointer
-	data unsafe.Pointer
+    funcvalsNames []string
+    funcvals      []unsafe.Pointer
+    data          unsafe.Pointer
 }
 
 func main() {
-	// -----> localImpl does not escape
-	impl1 := myCoolImpl{}
-	_foo_1(&impl1) // -> заметь здесь тоже берем указатель
-                 //	 но как мы уже знаем, компилятор может доказать
-                 //	 что этот указатель никуда не убежит за пределы
-                 //	 main, поэтому достаточно передать указатель
-                 //  область где лежит в стеке main impl1
+    // -----> localImpl does not escape
+    impl1 := myCoolImpl{}
+    _foo_1(&impl1) // -> заметь здесь тоже берем указатель
+    //   но как мы уже знаем, компилятор может доказать
+    //   что этот указатель никуда не убежит за пределы
+    //   main, поэтому достаточно передать указатель
+    //   область где лежит в стеке main impl1
 
-	// -----> moved to heap: impl2
-	impl2 := myCoolImpl{}
-	_foo_2(&impl2)	// -> создается и копируется 
-                  //    в регистры iface, но вот impl1 убегает в кучу
-                  //	  iface{&impl2}.
-                  //
-                  //	P.S. кст, сбилди сам asm и посмотри, куда будет все-таки
-                  //	размещен iface:
-                  //	1) в знакомый нам уже spill slot на стеке main
-                  //	2) или же раскидается на два регистра 
-	
-	// если iface{*type, *data} то есть два указателя
-	// то логично что и contacts: &contacts должна убежать, логично?
-	// Нооо упс... :(
-	// -----> ./main.go:48:26: &contacts{} does not escape
-	user1 := user{contacts: &contacts{}}
-	_foo_3(user1)
+    // -----> moved to heap: impl2
+    impl2 := myCoolImpl{}
+    _foo_2(&impl2) // -> создается и копируется 
+    //    в регистры iface, но вот impl1 убегает в кучу
+    //    iface{&impl2}.
+    //
+    //    P.S. кст, сбилди сам asm и посмотри, куда будет все-таки
+    //    размещен iface:
+    //    1) в знакомый нам уже spill slot на стеке main
+    //    2) или же раскидается на два регистра 
 
-	// может надо contacts разместить на стеке?
-	// и снова молчит escape анализ, упс...
-	contacts2 := contacts{}
-	user2 := user{contacts: &contacts2}
-	_foo_3(user2)
+    // если iface{*type, *data} то есть два указателя
+    // то логично что и contacts: &contacts должна убежать, логично?
+    // Нооо упс... :(
+    // -----> ./main.go:48:26: &contacts{} does not escape
+    user1 := user{contacts: &contacts{}}
+    _foo_3(user1)
 
-	// iface.data является unsafe.Pointer'ом, может дело все в нем
-	// то уже с untypedUser точно убежит contacts3 (да и id3)!
-	// Нооо упс... :(
-	// -----> localUntypedUser does not escape
-	id3 := 1
-	contacts3 := contacts{}
-	user3 := untypedUser{
-		id: unsafe.Pointer(&id3),
-		contacts: unsafe.Pointer(&contacts3),
-	}
-	_foo_4(user3)
+    // может надо contacts разместить на стеке?
+    // и снова молчит escape анализ, упс...
+    contacts2 := contacts{}
+    user2 := user{contacts: &contacts2}
+    _foo_3(user2)
 
-	// iface хранит объекты funcval'ы для методов
-	// может вот в чем дело?
-	// Бинго!
-	// -----> &myCoolImpl{} escapes to heap
-	// -----> impl3.ДелайВаау escapes to heap
-	// -----> impl3.ДелайКруто escapes to heap
-	impl3 := &myCoolImpl{}
-	methodДелайВаау := impl3.ДелайВаау	 // создали объект funcval
-	methodДелайКруто := impl3.ДелайКруто // создали объект funcval
-	iface := myIface{
-		funcvalsNames: []string{
-			"ДелайВаау", "ДелайКруто",
-		},
-		funcvals: []unsafe.Pointer{
-			unsafe.Pointer(&methodДелайВаау),  // cоздали указатель на указатель - **funcval
-			unsafe.Pointer(&methodДелайКруто), // cоздали указатель на указатель - **funcval
-		},
-		data: unsafe.Pointer(impl3),
-	}
-	_foo_5(iface)
+    // iface.data является unsafe.Pointer'ом, может дело все в нем
+    // то уже с untypedUser точно убежит contacts3 (да и id3)!
+    // Нооо упс... :(
+    // -----> localUntypedUser does not escape
+    id3 := 1
+    contacts3 := contacts{}
+    user3 := untypedUser{
+        id:       unsafe.Pointer(&id3),
+        contacts: unsafe.Pointer(&contacts3),
+    }
+    _foo_4(user3)
 
-	// -----> cnt escapes to heap
-	var cnt int
-	fmt.Println(cnt) 	// -> создается и копируется 
-                    //    в регистры eface, но вот cnt убегает в кучу
-                    //	  eface{&impl2}.
+    // iface хранит объекты funcval'ы для методов
+    // может вот в чем дело?
+    // Бинго!
+    // -----> &myCoolImpl{} escapes to heap
+    // -----> impl3.ДелайВаау escapes to heap
+    // -----> impl3.ДелайКруто escapes to heap
+    impl3 := &myCoolImpl{}
+    methodДелайВаау := impl3.ДелайВаау  // создали объект funcval
+    methodДелайКруто := impl3.ДелайКруто // создали объект funcval
+    iface := myIface{
+        funcvalsNames: []string{
+            "ДелайВаау", "ДелайКруто",
+        },
+        funcvals: []unsafe.Pointer{
+            unsafe.Pointer(&methodДелайВаау),  // cоздали указатель на указатель - **funcval
+            unsafe.Pointer(&methodДелайКруто), // cоздали указатель на указатель - **funcval
+        },
+        data: unsafe.Pointer(impl3),
+    }
+    _foo_5(iface)
+
+    // -----> cnt escapes to heap
+    var cnt int
+    fmt.Println(cnt) // -> создается и копируется 
+    //    в регистры eface, но вот cnt убегает в кучу
+    //    eface{&impl2}.
 }
 
 func _foo_1(localImpl *myCoolImpl) {
-	_ = localImpl.ДелайВаау()
+    _ = localImpl.ДелайВаау()
 }
 
 func _foo_2(делатель ДелательВпечатлений) {
-	_ = делатель.ДелайКруто()
+    _ = делатель.ДелайКруто()
 }
 
 func _foo_3(localUser user) {
-	localUser.contacts.email = "email@mail.com"
+    localUser.contacts.email = "email@mail.com"
 }
 
 func _foo_4(localUntypedUser untypedUser) {
-	restoredConacts := (*contacts)(localUntypedUser.contacts)
-	restoredConacts.email = "email@mail.com"
+    restoredConacts := (*contacts)(localUntypedUser.contacts)
+    restoredConacts.email = "email@mail.com"
 }
 
 func _foo_5(localMyIface myIface) {
-	for idx := 0; idx < len(localMyIface.funcvals); idx++ {
-     // создаем переменную указатель на *funcval для func() error :)
-     var fn *func() error
+    for idx := 0; idx < len(localMyIface.funcvals); idx++ {
+        // создаем переменную указатель на *funcval для func() error :)
+        var fn *func() error
 
-     // Да я знаю, это просто п... 
-     // (Не на до такое в prod'е писать, если только нет острой нужды
-     // лезть в "бизтиповое программирование", но в 99% случаев - это ред флаг,
-     // который подсказывает тебе, то что ты в своем приложении делаешь что не то. 
-     // Автор убил на эти две строчки час времени и честно не особо испытывает желание
-     // этим заниматься когда-либо еще. Честно и как говорится по факту. Автор даже
-     // комментарии переписывал несколько раз чтобы было понятно)
-     // 
-     // GO не позволяет читать/записывать в уже созданный unsafe.Pointer,
-     // такова архитектура языка, ты с этим ничего не сделаешь. unsafe.Pointer является
-     // контейнером для передачи некоторого адреса. Создавай unsafe.Pointer ты просто
-     // передаешь адрес и когда ты пытаешься что-то записать, то компилятор оказывается
-     // в тупике. Он не знает что это за адрес, он не знает что за этим адресом
-     // лежит конкретный тип - указатель! Да, указатель в GO это тип
-     // такой же тип как и int, string и untypedUser в конце концов. Поэтому
-     // не ведись на название Pointer, которые ты читаешь как указатель. Нет это адрес!
-     // То есть он видит буквально: 
-     // 			unsafe.Pointer(0x00) 
-     // где uintptr это тоже не указатель, а целочисленное значение для адреса в памяти,
-     // он видит адрес 0x00, но как я его приведи к конкретному типу, если я не знаю
-     // размер этого типа? Представь, ты штукатур и тебе говорят: сколько стоит сделать
-     // стены в квартире по адресу ул. Красногвардейская 123, кв. 123?
-     // Что ты будешь делать? Ты скажешь: вы мне квартиру то покажите!
-     // Вот компилятор GO находится ровно в такой же ситуации, ему надо знать тип.
-     // И кажушейся на первый взягляд глупой, литер приведения (*unsafe.Pointer)
-     // не такой уже и глупый, да? То есть мы ему сказали что типом является - указатель
-     // (на unsafe.Pointer)! Только зная что это тип указатель, мы можем выполнить присвоение
-     // с предварительным разыменованием.
-     //
-     // P.S. на самом деле unsafe.Pointer(uintptr(0x00)) :) А вот unsafe.Pointer и uintptr
-     // это одно и тоже, с одной лишь разницей: GC не знает что такое uintptr
-     p := (*unsafe.Pointer)(unsafe.Pointer(&fn))
-     *p = localMyIface.funcvals[idx] // funcvals[idx] является типом unsafe.Pointer, поэтому
-                                     // поэтому можем выполнить разыменование и присвоение
+        // Да я знаю, это просто п... 
+        // (Не на до такое в prod'е писать, если только нет острой нужды
+        // лезть в "бизтиповое программирование", но в 99% случаев - это ред флаг,
+        // который подсказывает тебе, то что ты в своем приложении делаешь что не то. 
+        // Автор убил на эти две строчки час времени и честно не особо испытывает желание
+        // этим заниматься когда-либо еще. Честно и как говорится по факту. Автор даже
+        // комментарии переписывал несколько раз чтобы было понятно)
+        // 
+        // GO не позволяет читать/записывать в уже созданный unsafe.Pointer,
+        // такова архитектура языка, ты с этим ничего не сделаешь. unsafe.Pointer является
+        // контейнером для передачи некоторого адреса. Создавай unsafe.Pointer ты просто
+        // передаешь адрес и когда ты пытаешься что-то записать, то компилятор оказывается
+        // в тупике. Он не знает что это за адрес, он не знает что за этим адресом
+        // лежит конкретный тип - указатель! Да, указатель в GO это тип
+        // такой же тип как и int, string и untypedUser в конце концов. Поэтому
+        // не ведись на название Pointer, которые ты читаешь как указатель. Нет это адрес!
+        // То есть он видит буквально: 
+        //             unsafe.Pointer(0x00) 
+        // где uintptr это тоже не указатель, а целочисленное значение для адреса в памяти,
+        // он видит адрес 0x00, но как я его приведи к конкретному типу, если я не знаю
+        // размер этого типа? Представь, ты штукатур и тебе говорят: сколько стоит сделать
+        // стены в квартире по адресу ул. Красногвардейская 123, кв. 123?
+        // Что ты будешь делать? Ты скажешь: вы мне квартиру то покажите!
+        // Вот компилятор GO находится ровно в такой же ситуации, ему надо знать тип.
+        // И кажушейся на первый взягляд глупой, литер приведения (*unsafe.Pointer)
+        // не такой уже и глупый, да? То есть мы ему сказали что типом является - указатель
+        // (на unsafe.Pointer)! Только зная что это тип указатель, мы можем выполнить присвоение
+        // с предварительным разыменованием.
+        //
+        // P.S. на самом деле unsafe.Pointer(uintptr(0x00)) :) А вот unsafe.Pointer и uintptr
+        // это одно и тоже, с одной лишь разницей: GC не знает что такое uintptr
+        p := (*unsafe.Pointer)(unsafe.Pointer(&fn))
+        *p = localMyIface.funcvals[idx] // funcvals[idx] является типом unsafe.Pointer, поэтому
+                                        // поэтому можем выполнить разыменование и присвоение
 
-     if fn != nil { 
-       _ = (*fn)()
-     }
-    
-   }
+        if fn != nil {
+            _ = (*fn)()
+        }
+    }
 }
 ```
 
@@ -1412,7 +1422,7 @@ func main() {
 	_ = впечатлитель.ДелайКруто()
 }
 
-escape analyze:
+GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go:
 	&myCoolImpl{} does not escape
 ```
 
@@ -1434,8 +1444,8 @@ func _foo_2(делатель ДелательВпечатлений) {
 funcval - в GO рантайме структура для функций, который нужно передать/сохранить как значение, всегда создает структуру funcval из которой он понимает что нужно для запуска твоей функции. Дальше мы еще поговорим подробней про funcval когда будем рассматривать как создаются горутины.
 
 ```go
-go func(){}() 							-> создан объект funcval для func(){}
-workerPool.Submit(func(){}) -> создан объект funcval для func(){}
+go func(){}()               // -> создан объект funcval для func(){}
+workerPool.Submit(func(){}) // -> создан объект funcval для func(){}
 ```
 
 Давай запустим такой код
@@ -1479,7 +1489,7 @@ func main() {
 	}
 }
 
-escape analyze:
+GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go:
 	val does not escape
   func literal does not escape
 
@@ -1490,60 +1500,60 @@ escape analyze:
 ```assembly
 ################################# P.S. 0x10 в 16-ой системе, а 10-ой системе = 16, так что не путайся :)
 0000000000479960 <main.main>:
-  # стандартно проверяем границу стека G
-  cmpq	0x10(%r14), %rsp
-  # стандартно если стека G не хватает прыгаем для увелечения размера стека G
-  jbe	0x479a17 <main.main+0xb7>
-  pushq	%rbp                  # пускай RSP = 1000, поэтому 1000-8 = 992 получаем RBP для main.main
-                              # и сохраняем RBP runtime.main по адресу 992. RSP = 992
-  movq	%rsp, %rbp            # копируем в RBP значение RSP, и получаем RBP для main.main  - RBP = 992
-  subq	$0x40, %rsp           # вычисляем нижнюю границу стека main RSP - 64 = 992 - 64 = 928
-  movq	$0x1, 0x28(%rsp)      # по адресу 928 + 40 = 968 в стек main.main сохраняем a = 1
-  movq	$0x3, 0x8(%rsp)       # по адресу 928 + 8 = 936  в стек main.main сохраняем data1: 3
-  movups	%xmm15, 0x10(%rsp)  # теперь смотри xmm15 это векторный регистр на 16 байт
-                              # go решил нашу Struct "распихать по регистрам", 
-                              # а 16 байт это как раз два int :)
-                              # на этом этапе в xmm15 лежит какой-то мусор, но и пофиг, на стек main.main
-                              # начиная с адреса 928 + 16 = 944 будут лежать 
-                              # "мусорные" значения для data2, data3
-                              # то есть по адресам 944 по 960 (944+16)
-  movq	$0x0, 0x20(%rsp)      # по адресу 928 + 32 = 960 в стек main.main запишем data4 = 0      
-  leaq	0xa6(%rip), %rcx      # вычислим адрес для нашей var fn в блоке .text 
-  														# (вспомнинаем про то что в linux)
-                              # это секция в виртуальном пространстве адресов 
-                              # процесса отвечает за хранения кода
-                              # из товего бинарника пускай это будет адрес 100
-  movq	%rcx, 0x30(%rsp)      # по адресу 928 + 48 = 976 в стек main.main сохраняем адрес 100
-  leaq	0x8(%rsp), %rbx       # вычисли адрес 928 + 8 = 936 и сихраним его в RBX 
-                              # (подсказка это уже адрес data1: 3 :) см. выше)
-  movq	%rbx, 0x38(%rsp)      # по адресу 928 + 56 = 984 в стек main.main 
-  														# сохраняем адрес 936 (адрес data1: 3)
-  leaq	0x28(%rsp), %rax      # вычисли адрес 928 + 40 = 968 и сихраним его в RAX
-                              # (подсказка это уже адрес var a :) см. выше)
-  leaq	0x30(%rsp), %rdx      # вычисли адрес 928 + 48 = 976 и сихраним его в RDX
-                              # (подсказка по адресу 976 лежит адрес var fn = 100 :) см. выше)
-  callq	*%rcx                 # выполни вызов var fn из адреса в регистре RСX 
-  														# (в RCX сейчас записано 100)
-  # дальше скучно :)
-  # ... etc
-  addq	$0x40, %rsp
-  popq	%rbp
-  retq
-  callq	0x46f120 <runtime.morestack_noctxt.abi0>
-  nopl	(%rax)
-  jmp	0x479960 <main.main>
+    # стандартно проверяем границу стека G
+    cmpq    0x10(%r14), %rsp
+    # стандартно если стека G не хватает прыгаем для увелечения размера стека G
+    jbe     0x479a17 <main.main+0xb7>
+    pushq   %rbp                    # пускай RSP = 1000, поэтому 1000-8 = 992 получаем RBP для main.main
+                                    # и сохраняем RBP runtime.main по адресу 992. RSP = 992
+    movq    %rsp, %rbp              # копируем в RBP значение RSP, и получаем RBP для main.main - RBP = 992
+    subq    $0x40, %rsp              # вычисляем нижнюю границу стека main RSP - 64 = 992 - 64 = 928
+    movq    $0x1, 0x28(%rsp)        # по адресу 928 + 40 = 968 в стек main.main сохраняем a = 1
+    movq    $0x3, 0x8(%rsp)         # по адресу 928 + 8 = 936 в стек main.main сохраняем data1: 3
+    movups  %xmm15, 0x10(%rsp)      # теперь смотри xmm15 это векторный регистр на 16 байт
+                                    # go решил нашу Struct "распихать по регистрам", 
+                                    # а 16 байт это как раз два int :)
+                                    # на этом этапе в xmm15 лежит какой-то мусор, но и пофиг, на стек main.main
+                                    # начиная с адреса 928 + 16 = 944 будут лежать 
+                                    # "мусорные" значения для data2, data3
+                                    # то есть по адресам 944 по 960 (944+16)
+    movq    $0x0, 0x20(%rsp)        # по адресу 928 + 32 = 960 в стек main.main запишем data4 = 0      
+    leaq    0xa6(%rip), %rcx        # вычислим адрес для нашей var fn в блоке .text 
+                                    # (вспомнинаем про то что в linux)
+                                    # это секция в виртуальном пространстве адресов 
+                                    # процесса отвечает за хранения кода
+                                    # из товего бинарника пускай это будет адрес 100
+    movq    %rcx, 0x30(%rsp)        # по адресу 928 + 48 = 976 в стек main.main сохраняем адрес 100
+    leaq    0x8(%rsp), %rbx         # вычисли адрес 928 + 8 = 936 и сихраним его в RBX 
+                                    # (подсказка это уже адрес data1: 3 :) см. выше)
+    movq    %rbx, 0x38(%rsp)        # по адресу 928 + 56 = 984 в стек main.main 
+                                    # сохраняем адрес 936 (адрес data1: 3)
+    leaq    0x28(%rsp), %rax        # вычисли адрес 928 + 40 = 968 и сихраним его в RAX
+                                    # (подсказка это уже адрес var a :) см. выше)
+    leaq    0x30(%rsp), %rdx        # вычисли адрес 928 + 48 = 976 и сихраним его в RDX
+                                    # (подсказка по адресу 976 лежит адрес var fn = 100 :) см. выше)
+    callq   *%rcx                   # выполни вызов var fn из адреса в регистре RСX 
+                                    # (в RCX сейчас записано 100)
+    # дальше скучно :)
+    # ... etc
+    addq    $0x40, %rsp
+    popq    %rbp
+    retq
+    callq   0x46f120 <runtime.morestack_noctxt.abi0>
+    nopl    (%rax)
+    jmp     0x479960 <main.main>
  
 0000000000479a40 <main.main.func1>:
-  # P.S. см выше:
-  # 1) в RAX лежит адрес 968 - это адрес var a в стеке main.main 
-  # 2) в RDX лежит адрес 976 - это адрес на самого себя main.main.func1
-  movq	0x8(%rdx), %rcx     # вычисли адрес 976 + 8 = 984, а потому адресу лежит адрес 936,
-                            # то есть адрес (Struct) b.data1 (см. выше)                      
-  movq	$0x2, (%rax)        # запиши по адресу 968 2 -> *val = 2
-  movq	$0x4, (%rcx)        # по адресу 984 запиши 4 в адрес 936          -> b.data1 = 4
-  movq	$0x5, 0x8(%rcx)     # по адресу 984 запиши 5 в адрес 936+8  = 944 -> b.data2 = 5
-  movq	$0x6, 0x10(%rcx)    # по адресу 984 запиши 6 в адрес 936+16 = 952 -> b.data3 = 6
-  movq	$0x7, 0x18(%rcx)    # по адресу 984 запиши 7 в адрес 936+24 = 960 -> b.data4 = 7
+    # P.S. см выше:
+    # 1) в RAX лежит адрес 968 - это адрес var a в стеке main.main 
+    # 2) в RDX лежит адрес 976 - это адрес на самого себя main.main.func1
+    movq    0x8(%rdx), %rcx         # вычисли адрес 976 + 8 = 984, а потому адресу лежит адрес 936,
+                                    # то есть адрес (Struct) b.data1 (см. выше)                      
+    movq    $0x2, (%rax)            # запиши по адресу 968 2 -> *val = 2
+    movq    $0x4, (%rcx)            # по адресу 984 запиши 4 в адрес 936          -> b.data1 = 4
+    movq    $0x5, 0x8(%rcx)         # по адресу 984 запиши 5 в адрес 936+8  = 944 -> b.data2 = 5
+    movq    $0x6, 0x10(%rcx)        # по адресу 984 запиши 6 в адрес 936+16 = 952 -> b.data3 = 6
+    movq    $0x7, 0x18(%rcx)        # по адресу 984 запиши 7 в адрес 936+24 = 960 -> b.data4 = 7
 
 ```
 
@@ -1566,7 +1576,7 @@ func _foo_1(user *User) {
     fmt.Println(user.ID)
 }
 
-Escape analyze:
+GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go:
 	user.ID escapes to heap in _foo_1:
 	user does not escape
 	... argument does not escape
@@ -1601,7 +1611,7 @@ func main() {
 	<- res
 }
 
-escape analyze:
+GOOS=linux GOARCH=amd64 go build -gcflags="-m=2 -l" main.go:
 	u does not escape
 	task does not escape
 	res does not escape
@@ -1906,23 +1916,23 @@ func acquirem() *m {
 
 
 func releasem(mp *m) {
-	gp := getg() // берем из TLS текщую исполняемую G
+    gp := getg() // берем из TLS текщую исполняемую G
 	mp.locks--	 // у текущей исполняемой G, берем ссылку на M и уменьшаем счетчик 
 	
-  // Забежим немного вперед:
-  // 1) G.preempt - флаг который говорит о том, что наступил момент когда G пора бы "освободить место"
-  //		и дать поработать другим / либо о том что наступила остановка мира от GC
-  // 2) G.stackguard0 - верхняя граница стека G, а значение stackPreempt - это "хак", 
-  //		который вынудит G "освободить место" и дать поработать другим / 
-  //		либо наступила остановка мира от GC
-  //
-  // ВАЖНО:
-  // Об этом мы поговорим позже, когда посмотрим в планировщик. Сейчас нам важно знать то, что
-  // этот код вынудить текущий M уйти в режим планировщика или уснуть,
-  // потому что произошла остановка мира из-за GC! 
-  if mp.locks == 0 && gp.preempt {
-		gp.stackguard0 = stackPreempt
-	}
+    // Забежим немного вперед:
+    // 1) G.preempt - флаг который говорит о том, что наступил момент когда G пора бы "освободить место"
+    //		и дать поработать другим / либо о том что наступила остановка мира от GC
+    // 2) G.stackguard0 - верхняя граница стека G, а значение stackPreempt - это "хак", 
+    //		который вынудит G "освободить место" и дать поработать другим / 
+    //		либо наступила остановка мира от GC
+    //
+    // ВАЖНО:
+    // Об этом мы поговорим позже, когда посмотрим в планировщик. Сейчас нам важно знать то, что
+    // этот код вынудить текущий M уйти в режим планировщика или уснуть,
+    // потому что произошла остановка мира из-за GC! 
+    if mp.locks == 0 && gp.preempt {
+            gp.stackguard0 = stackPreempt
+    }
 }
 ```
 
@@ -2154,25 +2164,28 @@ func clone(flags int32, stk, mp, gp, fn unsafe.Pointer) int32
 clone(cloneFlags, stk, unsafe.Pointer(mp), unsafe.Pointer(mp.g0), unsafe.Pointer(abi.FuncPCABI0(mstart)))
 
 // Флаги определяют, что именно мы разделяем с родителем.
-1) flags - всегда прокакидывается глобальная переменная cloneFlags
-```
-cloneFlags = 	_CLONE_VM | 			// Общая память
-							_CLONE_FS | 			// Общая инфо о файловой системе
-							_CLONE_FILES | 		// Общие дескрипторы файлов
-							_CLONE_SIGHAND | 	// Общие обработчики сигналов
-							_CLONE_SYSVSEM | 	// Общий семафор System V 
-																// (помнишь про то что Linux защищает от одновременного 
-																// изменения файлов? Так вот это оно)
-							_CLONE_THREAD 		// Поместить в ту же группу потоков
-```
-
-2) stk - вершина стека `mp.g0.stack.hi`. Если свободных структур M нет (у которых реальный поток уже убит)  - то создаем новый стек через `syscall mmap`. 
-
-3) mp - указатель на расположенный в куче объект M для нового потока Linux. Именно этот указатель будет лежать в TLS нового потока Linux.
-
-4) gp - указатель на `g0`. При старте поток из TLS возьмет M и выполнит `M.g0 = gp`, а стартует поток с  `runtime.mstart`.
-
-5) fn - адрес assembly функции `runtime.mstart` с нее начнется выполняться поток. (P.S. она же, как мы узнаем дальше, исползуется при пробождении потока) 
+// 1) flags - всегда пробрасывается глобальная переменная cloneFlags
+// 
+// cloneFlags =     _CLONE_VM |         - Общая память
+//                  _CLONE_FS |         - Общая инфо о файловой системе
+//                  _CLONE_FILES |      - Общие дескрипторы файлов
+//                  _CLONE_SIGHAND |    - Общие обработчики сигналов
+//                  _CLONE_SYSVSEM |    - Общий семафор System V 
+//                                        (помнишь про то что Linux защищает от одновременного 
+//                                        изменения файлов? Так вот это оно)
+//                  _CLONE_THREAD       - Поместить в ту же группу потоков
+//
+// 2) stk - вершина стека `mp.g0.stack.hi`. Если свободных структур M нет 
+// (у которых реальный поток уже убит) - то создаем новый стек через `syscall mmap`. 
+// 
+// 3) mp - указатель на расположенный в куче объект M для нового потока Linux. 
+// Именно этот указатель будет лежать в TLS нового потока Linux.
+//
+// gp - указатель на `g0`. При старте поток из TLS возьмет M и выполнит `M.g0 = gp`, 
+// а стартует поток с `runtime.mstart`.
+//
+// fn - адрес assembly функции `runtime.mstart` с нее начнется выполняться поток. 
+// (P.S. она же, как мы узнаем дальше, используется при пробуждении потока)
 ````
 
 Теперь смотри что внутри (https://github.com/golang/go/blob/master/src/runtime/sys_linux_amd64.s#L574):
