@@ -72,6 +72,8 @@ type RoundRobin struct {
 // 1) добавление и удаление node
 // 2) обновление конфигов
 // 3) пинг нод в отдельной горутине чтобы сервак не прибил долго неиспользуемые connection'ы
+// 4) черная дыра в цикле восстановления connection'а
+// ЭТО НАКЛЕПАННО КАК НАКОЛЕЧННЫЙ ВАРИАНТ С ЦЕЛЬЮ: а может попробуем без каналов?
 //
 // Это не Балансировщик в чистом виде - это ConnectionPool, чтобы быть Балансировзкиом надо
 // уметь наливать еще коннекшенов про росте нагрузки и убирать их если нагрузка снижается
@@ -336,20 +338,37 @@ func (r *RoundRobin) brokenNodesReconnector() {
 
 			_ = brokenNode.t.conn.Close()
 
+			var attempts int
 			// До упора пытаемся восстановить ноду :)
 			// Если сервер умер здесь мы замерм навсегда
 			// автор устал ему лень писать prod решение :)
 			for {
-				err := r.reconnectNodeWithJitter(brokenNode)
-				if err == nil {
+				if attempts > r.cfg.Connections.Jitter.AttemptsMax {
+					r.registerBrokenNode(brokenNode)
+					r.refuseNodeOwnership(brokenNode)
 					break
 				}
 
+				err := r.reconnectNodeWithJitter(brokenNode)
+				if err == nil {
+					// сбрасываем владение этой нодой
+					// возвращаея ее в ротацию
+					r.refuseNodeOwnership(brokenNode)
+					break
+				}
+
+				// до упора пытаемся восстановить, причем
+				// даже если пропала DNS запись, ее могут восстановить
+				// мы наивно продолжаем пытаться.
+				//
+				// ВНИМАНИЕ НЕ НАДО ТАК ДЕЛАТЬ В PROD'е !!!!
+				// нода могла уйти потому, что был редеплой, или
+				// новый релиз, здесь мы пишем наивную, наколеночную
+				// реализацию в мире с розывыми пони, где все всегда
+				// статично и всегда работает  
+				attempts++
 				time.Sleep(r.cfg.Connections.Jitter.DurMax)
 			}
-
-			// отдаем владение этой нодой
-			r.refuseNodeOwnership(brokenNode)
 		}
 	}
 }
