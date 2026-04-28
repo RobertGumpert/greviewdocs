@@ -46,6 +46,11 @@ type SlidingWindow[Storage any, Metrics any, Aggregate any] struct {
 	bucketSize int64 // -> time.Duration - размер каждого бакета
 	startTime  int64 // -> time.Time.UnixNano()
 	endTime    int64 // -> time.Time.UnixNano()
+
+	debugStat struct {
+		numberMoveRing        int
+		numberFullRebuildRing int
+	}
 }
 
 func NewSlidingWindow[Storage any, Metrics any, Aggregate any](
@@ -79,16 +84,22 @@ func NewSlidingWindow[Storage any, Metrics any, Aggregate any](
 		ringBuffer:        ringBuffer,
 		bucketCount:       int(countBuckets - 1),
 		head:              0,
-		tail:              int(countBuckets - 1),
+		tail:              int(countBuckets - 2),
 		updaterCallback:   updaterCallback,
 		aggregateCallback: aggregateCallback,
 		bucketSize:        int64(bucketSize),
 		startTime:         startTime,
 		endTime:           endTime,
+		debugStat: struct {
+			numberMoveRing        int
+			numberFullRebuildRing int
+		}{
+			numberMoveRing:        0,
+			numberFullRebuildRing: 0,
+		},
 	}
 
 	return &sw
-
 }
 
 // SyncSetMetrics
@@ -105,9 +116,17 @@ func (w *SlidingWindow[Storage, Metrics, Aggregate]) SyncSetMetrics(metrics *Met
 	defer w.mu.Unlock()
 
 	now := time.Now().UnixNano()
-	_, tail := w.moveRingIfNeeded(now)
+	w.moveRingIfNeeded(now)
 
-	storage := &w.ringBuffer[tail].storage
+	// "логический" индекс, по сути какой по порядку
+	// бакет от 0 до len(w.ringBuffer) :)
+	idx := (now - w.startTime) / w.bucketSize
+	// переносим "логический" на "реальную, ситуацию на местах",
+	// помним, что у нас кольцевой буффер!
+	// head может оказаться не 0, а вообще N-1, где N = len(w.ringBuffer) :)
+	idx = (int64(w.head) + idx) % int64(len(w.ringBuffer))
+
+	storage := &w.ringBuffer[idx].storage
 	// так как backing array у w.ringBuffer уже в куче,
 	// то просто передаем указатель на место в куче с которого
 	// начинается Storage, i-ого бакета
@@ -158,7 +177,9 @@ func (w *SlidingWindow[Storage, Metrics, Aggregate]) aggregate(aggregate *Aggreg
 	//								    overflow
 	//      windowSize = 25 - 13 -> 12
 	//      если now - bucket.endTime > windowSize, просто
-	//      отбрасываем этот бакет :) по сути у нас тут родилась
+	//      отбрасываем этот бакет :) 
+	//      
+	//      по сути у нас тут родилась
 	//      зависимость aggregate от LazyAggregate, ноооо...
 	//      вцелом это допустимо :)
 	//
@@ -291,9 +312,10 @@ func (w *SlidingWindow[Storage, Metrics, Aggregate]) moveRingIfNeeded(now int64)
 		}
 		// обнолвяем данные всего окна
 		w.head = 0
-		w.tail = w.bucketCount
+		w.tail = w.bucketCount - 1
 		w.endTime = endTime
 		w.startTime = startTime
+		w.debugStat.numberFullRebuildRing++
 		// было
 		//  head           tail
 		//   |              |
@@ -335,6 +357,7 @@ func (w *SlidingWindow[Storage, Metrics, Aggregate]) moveRingIfNeeded(now int64)
 
 	w.startTime = startTime
 	w.endTime = endTime
+	w.debugStat.numberMoveRing++
 	// было:
 	//  head                 tail
 	//   |                     |
