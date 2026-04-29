@@ -15,14 +15,14 @@ type windowBucket[Storage any] struct {
 
 // Скользящему окну плевать какие именно метрики используются
 // для принятии решения. Пускай пользователь сам определяет
-// набор метрик и то как их обноалять с помощью - MetricsUpdaterFn.
+// набор метрик и то как их обноалять с помощью - slidingWindowMetricsUpdaterFn.
 // То есть funcval на пользовательскую функцию, которая метрики
 // обновляет.
-type MetricsUpdaterFn[Storage any, Metrics any] func(*Storage, *Metrics)
+type slidingWindowMetricsUpdaterFn[Storage any, Metrics any] func(*Storage, *Metrics)
 
 // Скользящему окну плевать как именно принимается решение, это задача
-// пользовательсклй функции хранимой ввиде funcval - AggregateFn
-type AggregateFn[Aggregate any, Storage any] func(*Aggregate, *Storage) bool
+// пользовательсклй функции хранимой ввиде funcval - slidingWindowAggregateFn
+type slidingWindowAggregateFn[Aggregate any, Storage any] func(*Aggregate, *Storage) bool
 
 type SlidingWindow[Storage any, Metrics any, Aggregate any] struct {
 	mu sync.RWMutex
@@ -40,8 +40,8 @@ type SlidingWindow[Storage any, Metrics any, Aggregate any] struct {
 	// может сократить assembler удалив пролог функции,
 	// по сути будет лищь одно обращешие в RAM - в инструкции callq
 	// Кажется это некоторый баланс между сложностью и эффективностью
-	updaterCallback   MetricsUpdaterFn[Storage, Metrics]
-	aggregateCallback AggregateFn[Aggregate, Storage]
+	updaterCallback   slidingWindowMetricsUpdaterFn[Storage, Metrics]
+	aggregateCallback slidingWindowAggregateFn[Aggregate, Storage]
 	// границы скользящего окна
 	bucketSize int64 // -> time.Duration - размер каждого бакета
 	startTime  int64 // -> time.Time.UnixNano()
@@ -56,8 +56,8 @@ type SlidingWindow[Storage any, Metrics any, Aggregate any] struct {
 func NewSlidingWindow[Storage any, Metrics any, Aggregate any](
 	bucketSize time.Duration,
 	windowSize time.Duration,
-	updaterCallback MetricsUpdaterFn[Storage, Metrics],
-	aggregateCallback AggregateFn[Aggregate, Storage],
+	updaterCallback slidingWindowMetricsUpdaterFn[Storage, Metrics],
+	aggregateCallback slidingWindowAggregateFn[Aggregate, Storage],
 ) *SlidingWindow[Storage, Metrics, Aggregate] {
 
 	now := time.Now()
@@ -116,21 +116,8 @@ func (w *SlidingWindow[Storage, Metrics, Aggregate]) SyncSetMetrics(metrics *Met
 	defer w.mu.Unlock()
 
 	now := time.Now().UnixNano()
-	w.moveRingIfNeeded(now)
 
-	// "логический" индекс, по сути какой по порядку
-	// бакет от 0 до len(w.ringBuffer) :)
-	idx := (now - w.startTime) / w.bucketSize
-	// переносим "логический" на "реальную, ситуацию на местах",
-	// помним, что у нас кольцевой буффер!
-	// head может оказаться не 0, а вообще N-1, где N = len(w.ringBuffer) :)
-	idx = (int64(w.head) + idx) % int64(len(w.ringBuffer))
-
-	storage := &w.ringBuffer[idx].storage
-	// так как backing array у w.ringBuffer уже в куче,
-	// то просто передаем указатель на место в куче с которого
-	// начинается Storage, i-ого бакета
-	w.updaterCallback(storage, metrics)
+	w.syncSetMetrics(now, metrics)
 }
 
 // SyncAggregate, LazyAggregate
@@ -167,6 +154,23 @@ func (w *SlidingWindow[Storage, Metrics, Aggregate]) LazyAggregate(aggregate *Ag
 	head, tail := w.getRingPointers(now)
 
 	return w.aggregate(aggregate, head, tail, now)
+}
+
+func (w *SlidingWindow[Storage, Metrics, Aggregate]) syncSetMetrics(now int64, metrics *Metrics) {
+	w.moveRingIfNeeded(now)
+	// "логический" индекс, по сути какой по порядку
+	// бакет от 0 до len(w.ringBuffer) :)
+	idx := (now - w.startTime) / w.bucketSize
+	// переносим "логический" на "реальную, ситуацию на местах",
+	// помним, что у нас кольцевой буффер!
+	// head может оказаться не 0, а вообще N-1, где N = len(w.ringBuffer) :)
+	idx = (int64(w.head) + idx) % int64(len(w.ringBuffer))
+
+	storage := &w.ringBuffer[idx].storage
+	// так как backing array у w.ringBuffer уже в куче,
+	// то просто передаем указатель на место в куче с которого
+	// начинается Storage, i-ого бакета
+	w.updaterCallback(storage, metrics)
 }
 
 func (w *SlidingWindow[Storage, Metrics, Aggregate]) aggregate(aggregate *Aggregate, head, tail int, now int64) bool {
@@ -346,14 +350,6 @@ func (w *SlidingWindow[Storage, Metrics, Aggregate]) moveRingIfNeeded(now int64)
 		w.tail = (w.tail + 1) % len(w.ringBuffer)
 		bucketStartTime += w.bucketSize
 	}
-
-	// подготовим overflowbucket, который
-	// всегда идет за tail + 1
-	w.resetBucket(
-		bucketStartTime,
-		bucketStartTime+w.bucketSize,
-		(w.tail+1)%len(w.ringBuffer),
-	)
 
 	w.startTime = startTime
 	w.endTime = endTime

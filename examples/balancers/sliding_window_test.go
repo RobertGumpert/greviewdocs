@@ -13,19 +13,19 @@ func Test_SlidingWindow(t *testing.T) {
 		metricsAggregator,
 	)
 
-	sw.SyncSetMetrics(&Metrics{requestFailed: false, responseTime: 100})
+	sw.syncSetMetrics(time.Now().UnixNano(), &Metrics{requestFailed: false, responseTime: 100})
 	time.Sleep(200 * time.Millisecond)
-	sw.SyncSetMetrics(&Metrics{requestFailed: false, responseTime: 200})
+	sw.syncSetMetrics(time.Now().UnixNano(), &Metrics{requestFailed: false, responseTime: 200})
 	time.Sleep(200 * time.Millisecond)
-	sw.SyncSetMetrics(&Metrics{requestFailed: false, responseTime: 300})
+	sw.syncSetMetrics(time.Now().UnixNano(), &Metrics{requestFailed: false, responseTime: 300})
 	time.Sleep(200 * time.Millisecond)
-	sw.SyncSetMetrics(&Metrics{requestFailed: false, responseTime: 400})
+	sw.syncSetMetrics(time.Now().UnixNano(), &Metrics{requestFailed: false, responseTime: 400})
 	time.Sleep(200 * time.Millisecond)
-	sw.SyncSetMetrics(&Metrics{requestFailed: false, responseTime: 500})
+	sw.syncSetMetrics(time.Now().UnixNano(), &Metrics{requestFailed: false, responseTime: 500})
 	time.Sleep(200 * time.Millisecond)
-	sw.SyncSetMetrics(&Metrics{requestFailed: false, responseTime: 600})
+	sw.syncSetMetrics(time.Now().UnixNano(), &Metrics{requestFailed: false, responseTime: 600})
 	time.Sleep(200 * time.Millisecond)
-	sw.SyncSetMetrics(&Metrics{requestFailed: false, responseTime: 700})
+	sw.syncSetMetrics(time.Now().UnixNano(), &Metrics{requestFailed: false, responseTime: 700})
 
 	// вот слепок из дебагера :)
 	// head = 1
@@ -44,7 +44,8 @@ func Test_SlidingWindow(t *testing.T) {
 	// 4) кольцо сдвинулось один раз
 
 	time.Sleep(400 * time.Millisecond)
-	sw.SyncSetMetrics(&Metrics{requestFailed: false, responseTime: 800})
+	now := time.Now().UnixNano()
+	sw.syncSetMetrics(now, &Metrics{requestFailed: false, responseTime: 800})
 
 	// head = 3
 	// tail = 1
