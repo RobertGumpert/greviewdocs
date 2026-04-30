@@ -158,6 +158,10 @@ func (w *SlidingWindow[Storage, Metrics, Aggregate]) LazyAggregate(aggregate *Ag
 
 func (w *SlidingWindow[Storage, Metrics, Aggregate]) syncSetMetrics(now int64, metrics *Metrics) {
 	w.moveRingIfNeeded(now)
+	if w.startTime > now {
+
+	}
+
 	// "логический" индекс, по сути какой по порядку
 	// бакет от 0 до len(w.ringBuffer) :)
 	idx := (now - w.startTime) / w.bucketSize
@@ -179,13 +183,9 @@ func (w *SlidingWindow[Storage, Metrics, Aggregate]) aggregate(aggregate *Aggreg
 	// 		[13,15][15,17][17,19][19,21][23,25]
 	//									   |
 	//								    overflow
-	//      windowSize = 25 - 13 -> 12
-	//      если now - bucket.endTime > windowSize, просто
-	//      отбрасываем этот бакет :) 
-	//      
-	//      по сути у нас тут родилась
-	//      зависимость aggregate от LazyAggregate, ноооо...
-	//      вцелом это допустимо :)
+	// windowSize = 25 - 13 -> 12
+	// если now - bucket.endTime > windowSize, просто
+	// отбрасываем этот бакет :) 
 	//
 	//      если now -> 30
 	//      [13,15] -> 30 - 15 = 15, 15 > 12 - выкидываем бакет из агрегации
