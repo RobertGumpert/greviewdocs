@@ -1,11 +1,12 @@
 package balancers
 
 import (
+	"sync"
 	"sync/atomic"
 	"time"
 )
 
-type RateLimiter struct {
+type FixedWindowRateLimiter struct {
 	// интевал выичслений нагрузки
 	interval int64
 	// v - virtual пики (точенные, прости у автор юморное утро)
@@ -13,11 +14,11 @@ type RateLimiter struct {
 	// в пределах одной вирутальной эпохи :)
 	// Помнишь мы разбирали rune и SnowflakeID?
 	// вот здесь будет похожая механика:
-	// 1) первые 32 бита это монотонный счетчик
+	// 1) первые 41 бита это монотонный счетчик
 	//    который растет при смене реальной эпохи
-	// 2) следующие 32 бита это кол-во пиков сделанных
+	// 2) следующие 23 бита это кол-во пиков сделанных
 	//    в пределах текущей эпохи
-	vpicks uint64 // указатель на авктивный snapshot :)
+	vpicks uint64
 	// И так мы уже знакомы со SnowflakeID, почему нам применить
 	// эти знания в RateLimiter? :)
 	// так вот пускай от этого значения мы
@@ -27,11 +28,11 @@ type RateLimiter struct {
 	threshold int64
 }
 
-func NewRateLimiter(epoch, interval, threshold int64) *RateLimiter {
-	rt := RateLimiter{
-		interval: interval,
+func NewRateLimiter(epoch, interval, threshold int64) *FixedWindowRateLimiter {
+	rt := FixedWindowRateLimiter{
+		interval:  interval,
 		threshold: threshold,
-		epoch: epoch,
+		epoch:     epoch,
 	}
 
 	vepoch := rt.getNowVEpoch()
@@ -40,53 +41,53 @@ func NewRateLimiter(epoch, interval, threshold int64) *RateLimiter {
 	return &rt
 }
 
-func (r *RateLimiter) NeedThrottle() bool {
-	
+func (r *FixedWindowRateLimiter) NeedThrottle() bool {
+
 	newEpoch := r.getNowVEpoch()
 
 	// весь цикл замечателен тем что рано или поздно
 	// все G пожрут picks в рамках эпохи поэтому
-	// выжигать CPU серверной стойки мы не будем :) 
-    for {
+	// выжигать CPU серверной стойки мы не будем :)
+	for {
 		// берем текущее актальное состояние
 		vpicks := atomic.LoadUint64(&r.vpicks)
-        epoch, picks := r.decodeVpick(vpicks)
-		// если пики (точенные, прости) "закончились" 
+		epoch, picks := r.decodeVpick(vpicks)
+		// если пики (точенные, прости) "закончились"
 		// выходим и отказываем в обслуживании :)
 		if picks >= uint64(r.threshold) && newEpoch == epoch {
-            return false 
-        } 
+			return false
+		}
 		// если началась новая эпоха
 		// то пытаемся ее захватить самыми первыми
 		// но вот если текущая G уснет на G/OS context switch
 		// то когда проснется, уже не сможет ее начать
 		// так состояние vpicks скорее всего уже убежало далкео вперед
 		// так что начинаем все заново :)
-        if newEpoch > epoch {
-            newVpicks := r.encodeVpick(newEpoch, 1)
-            if atomic.CompareAndSwapUint64(&r.vpicks, vpicks, newVpicks) {
-                return true
-            }
-            continue
-        }
+		if newEpoch > epoch {
+			newVpicks := r.encodeVpick(newEpoch, 1)
+			if atomic.CompareAndSwapUint64(&r.vpicks, vpicks, newVpicks) {
+				return true
+			}
+			continue
+		}
 		// защизаемся от так называемого time drifta
 		// когда время на разных ядрах разъехалось
-        if newEpoch < epoch {
-            newEpoch = epoch
-        }
-    
-        newVpicks := r.encodeVpick(newEpoch, picks+1)
-        if atomic.CompareAndSwapUint64(&r.vpicks, vpicks, newVpicks) {
-            return true
-        }
+		if newEpoch < epoch {
+			newEpoch = epoch
+		}
+
+		newVpicks := r.encodeVpick(newEpoch, picks+1)
+		if atomic.CompareAndSwapUint64(&r.vpicks, vpicks, newVpicks) {
+			return true
+		}
 		// какая-то G оказалась шустрей или текущая G
 		// уснула из G/OS context switch, так что не придумываем
 		// себе геммороя на ж*** и просто начинаем цикл заново
 
-    }
+	}
 }
 
-func (r *RateLimiter) getNowVEpoch() uint64 {
+func (r *FixedWindowRateLimiter) getNowVEpoch() uint64 {
 	now := time.Now().UnixNano()
 	// получаем кол-во прешедших интервалов с момента старта
 	// эпохи, ну тут же знание о том в какой вирутальной
@@ -94,17 +95,88 @@ func (r *RateLimiter) getNowVEpoch() uint64 {
 	return uint64((now - r.epoch) / r.interval)
 }
 
-func (r *RateLimiter) decodeVpick(vpick uint64) (epoch, pick uint64) {
+func (r *FixedWindowRateLimiter) decodeVpick(vpick uint64) (epoch, pick uint64) {
 	// 41 бит это как мы уже знаем из SnowflakeID -
 	// 69 лет если твой интревал 1 миллисекнду
 	// если этого мало, то автор бессилен... :)
-	epoch = vpick >> 41  
+	epoch = vpick >> 41
 	// 23 бита -> 2^23 = 8_388_608 пиков,
 	// если этого мало, то автор бессилен... :)
 	pick = (vpick & 0x7FFFFF)
 	return
 }
 
-func (r *RateLimiter) encodeVpick(epoch, pick uint64) (vpick uint64) {
+func (r *FixedWindowRateLimiter) encodeVpick(epoch, pick uint64) (vpick uint64) {
 	return epoch<<41 | pick
+}
+
+type TokenBucketRateLimiter struct {
+	mu sync.Mutex
+	// раз в какое время нужно увеличивать
+	// кол-во доступных токенов
+	interval float64 // time.Duration
+	// сколько можем добавить токенов
+	// в указанный интервал времени
+	rate float64
+	// максимально кол-вл "пиков" которые мы допускаем
+	capacity float64
+	// когда последний раз "пикнули"
+	lastPickTs float64 // time.UnixNano
+	// сколько всего токенов есть прямо сейчас
+	tokens float64
+}
+
+func NewTokenBucketRateLimiter(interval time.Duration, rate, capacity int64) *TokenBucketRateLimiter {
+	intervalFl := float64(interval)
+	rateFl := float64(rate)
+	lastPickTs := float64(time.Now().UnixNano())
+	capacityFl := float64(capacity)
+
+	rt := TokenBucketRateLimiter{
+		mu:         sync.Mutex{},
+		interval:   intervalFl,
+		rate:       rateFl,
+		capacity:   capacityFl,
+		lastPickTs: lastPickTs,
+		tokens:     capacityFl,
+	}
+
+	return &rt
+}
+
+func (r *TokenBucketRateLimiter) NeedThrottle() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := float64(time.Now().UnixNano())
+	elapsed := (now - r.lastPickTs) / r.interval	
+	r.lastPickTs = now
+
+	// "пополняем баланс" баланс токенов :)
+	// при интеснсивном давлении на RateLimiter
+	// добавляться токены будет буквально по копейкам 
+	// Пускай итревал времени = [100 ; 200] и capacity = 3 токенами
+	// 1) T[190]: (190 - 100 / 100) * 3 = 2.7, тогда 3 + 2.7 > 3, тогда 3 - 1 = 2
+	// 2) T[191]: (191 - 190 / 100) * 3 = 0.03, тогда (2 + 0.03) - 1 = 1.03
+	// 3) T[192]: (192 - 191 / 100) * 3 = 0.03, тогда (1.03 + 0.03) - 1 = 0.06
+	// 4) T[193]: (193 - 192 / 100) * 3 = 0.03, тогда 0.06 + 0.03 = 0.09 < 1 - отвечаем отказом
+	// 5) T[198]: (198 - 193 / 100) * 3 = 0.05, тогда 0.09 + 0.05 = 0.14 < 1 - отвечаем отказом
+	// 6) T[202]: (202 - 198 / 100) * 3 = 0.04, тогда 0.14 + 0.04 = 0.18 < 1 - отвечаем отказом
+	// Начался новый интервал, но все равно отвечаем отказом и проблема с границами
+	// решена
+	r.tokens += elapsed * r.rate
+	if r.tokens > r.capacity {
+		// если слишком много свободных токенов
+		// то сбрасываем до capacity
+		r.tokens = r.capacity
+	}
+
+	// если токенов не меньше 1 целого
+	// то разрешаем
+	if r.tokens >= 1.0 {
+		r.tokens -= 1.0
+		return true
+	}
+
+	return false
 }
